@@ -18,6 +18,10 @@ export function GameCanvas() {
         useGameStore.getState().earnFood(amount);
       },
       getFoodAmount: () => useGameStore.getState().foodAmount,
+      onAntSpawned: (amount) => {
+        useGameStore.getState().incrementColonySize(amount);
+      },
+      getUpgradeLevels: () => useGameStore.getState().upgradeLevels,
     });
     engineRef.current = engine;
     engine.start();

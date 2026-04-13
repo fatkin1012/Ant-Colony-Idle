@@ -9,6 +9,12 @@ export interface GameWorld {
   readonly center: Vec2;
   readonly nestRadius: number;
   readonly time: number;
+  readonly antSpeedMultiplier: number;
+  readonly idleCooldownMultiplier: number;
+  readonly carryCapacityBonus: number;
+  readonly maxFoodOnField: number;
+  readonly maxForageRadius: number;
+  readonly foodPositions: Vec2[];
 }
 
 export interface GameEntity {

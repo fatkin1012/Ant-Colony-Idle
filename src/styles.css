@@ -84,9 +84,75 @@ body {
   top: 5.25rem;
   right: 1rem;
   z-index: 3;
+  width: min(24rem, calc(100vw - 2rem));
+}
+
+.upgrade-shell {
   display: grid;
   gap: 0.85rem;
-  width: min(24rem, calc(100vw - 2rem));
+  justify-items: end;
+}
+
+.upgrade-scroll-area {
+  display: grid;
+  gap: 0.85rem;
+  width: 100%;
+  max-height: calc(100dvh - 8.5rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.3rem;
+  scrollbar-gutter: stable;
+}
+
+.upgrade-overlay--collapsed {
+  width: auto;
+}
+
+.upgrade-overlay--collapsed .upgrade-shell {
+  width: fit-content;
+}
+
+.upgrade-overlay:not(.upgrade-overlay--collapsed) .upgrade-shell {
+  width: 100%;
+}
+
+.upgrade-collapse-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(20, 18, 14, 0.88);
+  color: #f4eddc;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: transform 150ms ease, background-color 150ms ease, opacity 150ms ease;
+}
+
+.upgrade-collapse-button:hover {
+  transform: translateY(-1px);
+  background: rgba(34, 30, 22, 0.94);
+}
+
+.upgrade-collapse-button:active {
+  transform: translateY(0);
+}
+
+.upgrade-collapse-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.upgrade-collapse-button__label {
+  white-space: nowrap;
 }
 
 .panel {
@@ -151,6 +217,13 @@ body {
   line-height: 1.5;
 }
 
+.upgrade-current-value {
+  margin: -0.45rem 0 0.95rem;
+  color: rgba(240, 223, 183, 0.82);
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+}
+
 .upgrade-button {
   width: 100%;
   min-height: 44px;
@@ -193,6 +266,18 @@ body {
     left: 0.75rem;
     bottom: 0.75rem;
     width: auto;
+  }
+
+  .upgrade-shell {
+    justify-items: stretch;
+  }
+
+  .upgrade-scroll-area {
+    max-height: min(62dvh, 34rem);
+  }
+
+  .upgrade-collapse-button {
+    justify-content: center;
   }
 
   .summary-panel {

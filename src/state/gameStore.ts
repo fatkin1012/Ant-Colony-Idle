@@ -1,16 +1,21 @@
 import { create } from 'zustand';
 
-export type UpgradeKey = 'queenSpawnRate' | 'carryCapacity';
+export type UpgradeKey = 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius';
 
 export interface UpgradeState {
   queenSpawnRate: number;
   carryCapacity: number;
+  antSpeed: number;
+  nestRecovery: number;
+  foodCapacity: number;
+  forageRadius: number;
 }
 
 interface GameState {
   colonySize: number;
   foodAmount: number;
   upgradeLevels: UpgradeState;
+  incrementColonySize: (amount?: number) => void;
   earnFood: (amount: number) => void;
   spendFood: (amount: number) => boolean;
   purchaseUpgrade: (upgradeKey: UpgradeKey) => boolean;
@@ -19,7 +24,11 @@ interface GameState {
 
 const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   queenSpawnRate: 25,
-  carryCapacity: 30,
+  carryCapacity: 25,
+  antSpeed: 25,
+  nestRecovery: 25,
+  foodCapacity: 30,
+  forageRadius: 35,
 };
 
 const UPGRADE_COST_GROWTH = 1.45;
@@ -34,6 +43,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   upgradeLevels: {
     queenSpawnRate: 0,
     carryCapacity: 0,
+    antSpeed: 0,
+    nestRecovery: 0,
+    foodCapacity: 0,
+    forageRadius: 0,
+  },
+  incrementColonySize: (amount = 1) => {
+    if (amount <= 0) {
+      return;
+    }
+
+    set((state) => ({
+      colonySize: state.colonySize + Math.floor(amount),
+    }));
   },
   earnFood: (amount) => {
     if (amount <= 0) {

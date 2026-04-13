@@ -26,6 +26,10 @@ app.post('/api/save', async (request, response) => {
     upgrade_levels: {
       queenSpawnRate: Math.max(0, Math.floor(body.upgrade_levels.queenSpawnRate)),
       carryCapacity: Math.max(0, Math.floor(body.upgrade_levels.carryCapacity)),
+      antSpeed: Math.max(0, Math.floor(body.upgrade_levels.antSpeed)),
+      nestRecovery: Math.max(0, Math.floor(body.upgrade_levels.nestRecovery)),
+      foodCapacity: Math.max(0, Math.floor(body.upgrade_levels.foodCapacity)),
+      forageRadius: Math.max(0, Math.floor(body.upgrade_levels.forageRadius)),
     },
     last_sync_timestamp: Date.now(),
   } satisfies SavedGameState;
@@ -62,6 +66,10 @@ function isValidSavedGameState(value: unknown): value is SavedGameState {
     typeof candidate.last_sync_timestamp === 'number' &&
     upgradeLevels !== undefined &&
     typeof upgradeLevels.queenSpawnRate === 'number' &&
-    typeof upgradeLevels.carryCapacity === 'number'
+    typeof upgradeLevels.carryCapacity === 'number' &&
+    typeof upgradeLevels.antSpeed === 'number' &&
+    typeof upgradeLevels.nestRecovery === 'number' &&
+    typeof upgradeLevels.foodCapacity === 'number' &&
+    typeof upgradeLevels.forageRadius === 'number'
   );
 }

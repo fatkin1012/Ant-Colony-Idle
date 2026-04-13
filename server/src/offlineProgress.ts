@@ -48,6 +48,10 @@ export function calculateOfflineProgress(state: SavedGameState, nowTimestamp: nu
       upgrade_levels: {
         queenSpawnRate: state.upgrade_levels.queenSpawnRate,
         carryCapacity: state.upgrade_levels.carryCapacity,
+        antSpeed: state.upgrade_levels.antSpeed,
+        nestRecovery: state.upgrade_levels.nestRecovery,
+        foodCapacity: state.upgrade_levels.foodCapacity,
+        forageRadius: state.upgrade_levels.forageRadius,
       },
       last_sync_timestamp: nowTimestamp,
     },

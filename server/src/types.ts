@@ -4,6 +4,10 @@ export interface SavedGameState {
   upgrade_levels: {
     queenSpawnRate: number;
     carryCapacity: number;
+    antSpeed: number;
+    nestRecovery: number;
+    foodCapacity: number;
+    forageRadius: number;
   };
   last_sync_timestamp: number;
 }

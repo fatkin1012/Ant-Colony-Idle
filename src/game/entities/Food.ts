@@ -24,8 +24,8 @@ export class Food {
 
   get position() {
     return {
-      x: this.x,
-      y: this.y,
+      x: this.x + this.size / 2,
+      y: this.y + this.size / 2,
     };
   }
 

@@ -8,6 +8,10 @@ const DEFAULT_STATE: SavedGameState = {
   upgrade_levels: {
     queenSpawnRate: 0,
     carryCapacity: 0,
+    antSpeed: 0,
+    nestRecovery: 0,
+    foodCapacity: 0,
+    forageRadius: 0,
   },
   last_sync_timestamp: Date.now(),
 };
@@ -49,6 +53,10 @@ function isSavedGameState(value: unknown): value is SavedGameState {
     typeof candidate.last_sync_timestamp === 'number' &&
     upgradeLevels !== undefined &&
     typeof upgradeLevels.queenSpawnRate === 'number' &&
-    typeof upgradeLevels.carryCapacity === 'number'
+    typeof upgradeLevels.carryCapacity === 'number' &&
+    typeof upgradeLevels.antSpeed === 'number' &&
+    typeof upgradeLevels.nestRecovery === 'number' &&
+    typeof upgradeLevels.foodCapacity === 'number' &&
+    typeof upgradeLevels.forageRadius === 'number'
   );
 }
