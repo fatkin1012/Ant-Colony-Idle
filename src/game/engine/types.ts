@@ -1,0 +1,26 @@
+export interface Vec2 {
+  x: number;
+  y: number;
+}
+
+export interface GameWorld {
+  readonly width: number;
+  readonly height: number;
+  readonly center: Vec2;
+  readonly nestRadius: number;
+  readonly time: number;
+}
+
+export interface GameEntity {
+  id: string;
+  alive: boolean;
+  update(deltaTime: number, world: GameWorld): void;
+  draw(context: CanvasRenderingContext2D, world: GameWorld): void;
+}
+
+export interface AntView {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly state: 'SEARCHING' | 'FOUND' | 'IDLE';
+}

@@ -1,0 +1,205 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #111;
+  color: #f3f0e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(79, 65, 47, 0.35), transparent 35%),
+    linear-gradient(180deg, #181614 0%, #0e0d0c 100%);
+}
+
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  pointer-events: none;
+}
+
+.hud h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+}
+
+.eyebrow,
+.status {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(243, 240, 232, 0.72);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.status {
+  max-width: 28rem;
+  text-align: right;
+}
+
+.game-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.upgrade-overlay {
+  position: absolute;
+  top: 5.25rem;
+  right: 1rem;
+  z-index: 3;
+  display: grid;
+  gap: 0.85rem;
+  width: min(24rem, calc(100vw - 2rem));
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(20, 18, 14, 0.78);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(12px);
+}
+
+.summary-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+}
+
+.panel-label {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(243, 240, 232, 0.62);
+}
+
+.panel-value {
+  display: block;
+  font-size: 1.1rem;
+  color: #f4eddc;
+}
+
+.upgrade-card {
+  padding: 1rem;
+}
+
+.upgrade-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.upgrade-card h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.upgrade-level {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(115, 94, 60, 0.22);
+  color: #f0dfb7;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+.upgrade-description {
+  margin: 0.85rem 0 0.95rem;
+  color: rgba(243, 240, 232, 0.8);
+  line-height: 1.5;
+}
+
+.upgrade-button {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #7d6a3c 0%, #5f4f2c 100%);
+  color: #faf4e6;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 150ms ease, opacity 150ms ease, filter 150ms ease;
+}
+
+.upgrade-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.upgrade-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.upgrade-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .hud {
+    padding: 0.85rem 0.85rem 0;
+  }
+
+  .status {
+    max-width: 14rem;
+  }
+
+  .upgrade-overlay {
+    top: auto;
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
+  }
+
+  .summary-panel {
+    padding: 0.8rem 0.9rem;
+  }
+
+  .upgrade-card {
+    padding: 0.9rem;
+  }
+}

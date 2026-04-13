@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+coverage/
+vite.svg
+
+# backend outputs and generated saves
+server/dist/
+server/data/*.json
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# environment files
+.env
+.env.*
+!.env.example
+
+# editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# caches
+.turbo/
+.cache/
+.vite/
