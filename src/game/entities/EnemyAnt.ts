@@ -48,6 +48,7 @@ export class EnemyAnt implements GameEntity {
   private attackCooldownSeconds = 0;
   private timeSinceSpawn = 0;
   private readonly runChargeDelaySeconds: number;
+  private readonly runnerOrbitDirection: number;
 
   constructor(config: EnemyAntConfig) {
     this.id = config.id;
@@ -65,6 +66,7 @@ export class EnemyAnt implements GameEntity {
     this.baseAttackCooldownSeconds = Math.max(0.25, config.attackCooldownSeconds);
     this.timeSinceSpawn = 0;
     this.runChargeDelaySeconds = ENEMY_TACTIC_TUNING.HARASS.runnerChargeDelaySeconds;
+    this.runnerOrbitDirection = (this.hashId() % 2 === 0 ? 1 : -1) as 1 | -1;
   }
 
   get position() {
@@ -118,13 +120,7 @@ export class EnemyAnt implements GameEntity {
     this.timeSinceSpawn += deltaTime;
 
     if (this.role === EnemyAntRole.RUNNER && this.timeSinceSpawn < this.runChargeDelaySeconds) {
-      const harassOffset = ENEMY_TACTIC_TUNING.HARASS.runnerOrbitRadiusOffset;
-      const orbitRadius = world.nestRadius + harassOffset;
-      const hash = this.hashId();
-      const angle = world.time * 0.55 + hash;
-      const targetX = world.center.x + Math.cos(angle) * orbitRadius;
-      const targetY = world.center.y + Math.sin(angle) * orbitRadius;
-      this.moveTowards(targetX, targetY, deltaTime);
+      this.orbitNestAsRunner(world, deltaTime);
       this.x = clamp(this.x, 0, Math.max(0, world.width - 2));
       this.y = clamp(this.y, 0, Math.max(0, world.height - 2));
       return;
@@ -137,10 +133,14 @@ export class EnemyAnt implements GameEntity {
     }
 
     if (this.tactic === EnemySquadTactic.HARASS) {
-      const harassOffset =
-        this.role === EnemyAntRole.RUNNER
-          ? ENEMY_TACTIC_TUNING.HARASS.runnerOrbitRadiusOffset
-          : ENEMY_TACTIC_TUNING.HARASS.orbitRadiusOffset;
+      if (this.role === EnemyAntRole.RUNNER) {
+        this.orbitNestAsRunner(world, deltaTime);
+        this.x = clamp(this.x, 0, Math.max(0, world.width - 2));
+        this.y = clamp(this.y, 0, Math.max(0, world.height - 2));
+        return;
+      }
+
+      const harassOffset = ENEMY_TACTIC_TUNING.HARASS.orbitRadiusOffset;
       const orbitRadius = world.nestRadius + harassOffset;
       const hash = this.hashId();
       const angle = world.time * 0.55 + hash;
@@ -201,6 +201,37 @@ export class EnemyAnt implements GameEntity {
     const angle = Math.atan2(this.y - targetY, this.x - targetX);
     this.x += Math.cos(angle) * this.rawSpeed * deltaTime;
     this.y += Math.sin(angle) * this.rawSpeed * deltaTime;
+  }
+
+  private orbitNestAsRunner(world: GameWorld, deltaTime: number) {
+    const dx = this.x - world.center.x;
+    const dy = this.y - world.center.y;
+    const distance = Math.hypot(dx, dy);
+    const safeRadius = world.nestRadius + ENEMY_TACTIC_TUNING.HARASS.runnerOrbitSafetyBuffer;
+
+    if (distance < safeRadius) {
+      this.moveAwayFrom(world.center.x, world.center.y, deltaTime);
+      return;
+    }
+
+    const desiredRadius = world.nestRadius + ENEMY_TACTIC_TUNING.HARASS.runnerOrbitRadiusOffset;
+    const currentDistance = Math.max(0.001, distance);
+    const radialX = dx / currentDistance;
+    const radialY = dy / currentDistance;
+    const tangentX = this.runnerOrbitDirection * -radialY;
+    const tangentY = this.runnerOrbitDirection * radialX;
+    const normalizedError = clamp((desiredRadius - currentDistance) / Math.max(1, desiredRadius), -1, 1);
+    const correction = normalizedError * ENEMY_TACTIC_TUNING.HARASS.runnerOrbitRadialCorrection;
+    const velocityX = tangentX + radialX * correction;
+    const velocityY = tangentY + radialY * correction;
+    const magnitude = Math.hypot(velocityX, velocityY);
+
+    if (magnitude <= 0.0001) {
+      return;
+    }
+
+    this.x += (velocityX / magnitude) * this.rawSpeed * deltaTime;
+    this.y += (velocityY / magnitude) * this.rawSpeed * deltaTime;
   }
 
   private moveTowardsTauntingGuardian(world: GameWorld, deltaTime: number) {

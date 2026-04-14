@@ -136,6 +136,8 @@ export const ENEMY_TACTIC_TUNING = {
     orbitRadiusOffset: 120,
     runnerOrbitRadiusOffset: 86,
     runnerChargeDelaySeconds: 20,
+    runnerOrbitSafetyBuffer: 8,
+    runnerOrbitRadialCorrection: 0.8,
   },
   SIEGE: {
     speedMultiplier: 1,
