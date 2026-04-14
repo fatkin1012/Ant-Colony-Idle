@@ -23,6 +23,9 @@ const LOCAL_SAVE_KEY = 'ant-colony-idle-save-v1';
 const LANGUAGE_KEY = 'ant-colony-idle-language';
 
 function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
+  const rawPopulationCapacity = (state.upgradeLevels as unknown as Record<string, unknown>).populationCapacity;
+  const populationCapacity = typeof rawPopulationCapacity === 'number' ? rawPopulationCapacity : 0;
+
   return {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
     foodAmount: Math.max(0, Math.floor(state.foodAmount)),
@@ -34,6 +37,7 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       nestRecovery: Math.max(0, Math.floor(state.upgradeLevels.nestRecovery)),
       foodCapacity: Math.max(0, Math.floor(state.upgradeLevels.foodCapacity)),
       forageRadius: Math.max(0, Math.floor(state.upgradeLevels.forageRadius)),
+      populationCapacity: Math.max(0, Math.floor(populationCapacity)),
     },
   };
 }
@@ -56,7 +60,8 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.nestRecovery === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
-    typeof upgradeLevels.forageRadius === 'number'
+    typeof upgradeLevels.forageRadius === 'number' &&
+    (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined')
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameCanvas } from './game/GameCanvas';
 import { UpgradeOverlay } from './ui/UpgradeOverlay';
+import { BattlePlannerPanel } from './ui/BattlePlannerPanel';
 import {
   clearPersistedGameState,
   loadGameLanguage,
@@ -21,6 +22,7 @@ const EMPTY_UPGRADE_LEVELS = {
   nestRecovery: 0,
   foodCapacity: 0,
   forageRadius: 0,
+  populationCapacity: 0,
 } as const;
 
 const TRANSLATIONS: Record<
@@ -234,6 +236,7 @@ export default function App() {
           showMenuLabel={text.showMenu}
           hideMenuLabel={text.hideMenu}
         />
+        <BattlePlannerPanel language={language} />
       </main>
 
       {isSettingsOpen ? (

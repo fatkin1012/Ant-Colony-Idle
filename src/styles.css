@@ -386,6 +386,188 @@ body {
   cursor: not-allowed;
 }
 
+.battle-planner {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 4;
+  width: min(23rem, calc(100vw - 2rem));
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.battle-planner h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1rem;
+}
+
+.battle-planner__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.battle-planner__mode {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(56px, 1fr));
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.battle-planner__mode-button {
+  min-height: 38px;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  background: rgba(33, 29, 22, 0.9);
+  color: rgba(243, 240, 232, 0.84);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.battle-planner__mode-button.is-active {
+  background: rgba(119, 97, 58, 0.78);
+  color: #fff6df;
+}
+
+.battle-planner__roles {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.battle-role-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.55rem;
+  background: rgba(24, 22, 18, 0.82);
+}
+
+.battle-role-card__meta {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.battle-role-card__meta strong {
+  font-size: 0.9rem;
+}
+
+.battle-role-card__meta span {
+  font-size: 0.74rem;
+  color: rgba(243, 240, 232, 0.64);
+}
+
+.battle-stepper {
+  display: grid;
+  grid-template-columns: 44px minmax(36px, auto) 44px;
+  align-items: center;
+  justify-items: center;
+  gap: 0.2rem;
+}
+
+.battle-stepper button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(43, 38, 29, 0.9);
+  color: #f3eee0;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.battle-stepper span {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.battle-planner__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.battle-planner__stats p {
+  margin: 0;
+  padding: 0.45rem;
+  border-radius: 10px;
+  background: rgba(35, 31, 24, 0.82);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.battle-planner__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.battle-action {
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #78663b 0%, #5a4a2b 100%);
+  color: #fcf4e5;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.battle-action--ghost {
+  background: rgba(36, 32, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.battle-planner__queue {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.battle-planner__empty {
+  margin: 0;
+  color: rgba(243, 240, 232, 0.62);
+  font-size: 0.82rem;
+}
+
+.battle-queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.5rem;
+  background: rgba(25, 22, 17, 0.76);
+}
+
+.battle-queue-item p,
+.battle-queue-item small {
+  margin: 0.15rem 0 0;
+  color: rgba(243, 240, 232, 0.76);
+  font-size: 0.72rem;
+}
+
+.battle-queue-item .battle-action {
+  min-width: 86px;
+}
+
+.battle-planner__tip,
+.battle-planner__message {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(243, 240, 232, 0.66);
+  line-height: 1.4;
+}
+
+.battle-planner__message {
+  color: #f4dfad;
+}
+
 @media (max-width: 720px) {
   .hud {
     padding: 0.85rem 0.85rem 0;
@@ -409,5 +591,22 @@ body {
 
   .upgrade-card {
     padding: 0.9rem;
+  }
+
+  .battle-planner {
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+    bottom: 0.9rem;
+    max-height: 50dvh;
+    overflow: auto;
+  }
+
+  .battle-planner__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-planner__actions {
+    grid-template-columns: 1fr;
   }
 }

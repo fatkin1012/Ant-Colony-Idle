@@ -1,8 +1,18 @@
 import { create } from 'zustand';
-import { MAX_UPGRADE_LEVEL } from '../game/upgradeBalances';
+import { BASE_POPULATION_CAPACITY, MAX_UPGRADE_LEVEL, POPULATION_CAPACITY_PER_LEVEL } from '../game/upgradeBalances';
 import type { PersistedGameState } from './gamePersistence';
+import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
-export type UpgradeKey = 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius';
+const DEV_FIXED_FOOD = import.meta.env.DEV ? 9999 : null;
+
+export type UpgradeKey =
+  | 'queenSpawnRate'
+  | 'carryCapacity'
+  | 'antSpeed'
+  | 'nestRecovery'
+  | 'foodCapacity'
+  | 'forageRadius'
+  | 'populationCapacity';
 
 export interface UpgradeState {
   queenSpawnRate: number;
@@ -11,6 +21,14 @@ export interface UpgradeState {
   nestRecovery: number;
   foodCapacity: number;
   forageRadius: number;
+  populationCapacity: number;
+}
+
+export interface BattleDeployment {
+  id: string;
+  composition: Partial<Record<AntRole, number>>;
+  mode: SquadMode;
+  createdAt: number;
 }
 
 interface GameState {
@@ -18,12 +36,16 @@ interface GameState {
   foodAmount: number;
   nestHealth: number;
   lastNestHitAt: number;
+  battleDeployments: BattleDeployment[];
   upgradeLevels: UpgradeState;
   hydrateFromPersistence: (state: PersistedGameState) => void;
+  syncColonySize: (amount: number) => void;
   incrementColonySize: (amount?: number) => void;
   loseColonySize: (amount?: number) => void;
   setNestHealth: (health: number) => void;
   notifyNestHit: () => void;
+  enqueueBattleDeployment: (deployment: Omit<BattleDeployment, 'id' | 'createdAt'>) => string;
+  pullBattleDeployments: () => BattleDeployment[];
   earnFood: (amount: number) => void;
   spendFood: (amount: number) => boolean;
   purchaseUpgrade: (upgradeKey: UpgradeKey) => boolean;
@@ -37,6 +59,7 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   nestRecovery: 25,
   foodCapacity: 30,
   forageRadius: 35,
+  populationCapacity: 55,
 };
 
 const UPGRADE_COST_GROWTH = 1.45;
@@ -51,9 +74,10 @@ function clampUpgradeLevel(level: number) {
 
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
-  foodAmount: 0,
+  foodAmount: DEV_FIXED_FOOD ?? 0,
   nestHealth: 100,
   lastNestHitAt: 0,
+  battleDeployments: [],
   upgradeLevels: {
     queenSpawnRate: 0,
     carryCapacity: 0,
@@ -61,11 +85,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     nestRecovery: 0,
     foodCapacity: 0,
     forageRadius: 0,
+    populationCapacity: 0,
   },
   hydrateFromPersistence: (state) => {
     set({
       colonySize: Math.max(0, Math.floor(state.colonySize)),
-      foodAmount: Math.max(0, Math.floor(state.foodAmount)),
+      foodAmount: DEV_FIXED_FOOD ?? Math.max(0, Math.floor(state.foodAmount)),
       nestHealth: Math.max(0, Math.floor(state.nestHealth)),
       upgradeLevels: {
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
@@ -74,8 +99,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         nestRecovery: clampUpgradeLevel(state.upgradeLevels.nestRecovery),
         foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
         forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
+        populationCapacity: clampUpgradeLevel(state.upgradeLevels.populationCapacity),
       },
     });
+  },
+  syncColonySize: (amount) => {
+    const next = Math.max(0, Math.floor(amount));
+
+    set({ colonySize: next });
   },
   incrementColonySize: (amount = 1) => {
     if (amount <= 0) {
@@ -105,8 +136,42 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastNestHitAt: Date.now(),
     });
   },
+  enqueueBattleDeployment: (deployment) => {
+    const id = `deployment-${Date.now().toString(36)}-${Math.floor(Math.random() * 10000)}`;
+
+    set((state) => ({
+      battleDeployments: [
+        ...state.battleDeployments,
+        {
+          id,
+          composition: deployment.composition,
+          mode: deployment.mode,
+          createdAt: Date.now(),
+        },
+      ],
+    }));
+
+    return id;
+  },
+  pullBattleDeployments: () => {
+    const queued = get().battleDeployments;
+
+    if (queued.length === 0) {
+      return [];
+    }
+
+    set({ battleDeployments: [] });
+    return queued;
+  },
   earnFood: (amount) => {
     if (amount <= 0) {
+      return;
+    }
+
+    if (DEV_FIXED_FOOD !== null) {
+      set({
+        foodAmount: DEV_FIXED_FOOD,
+      });
       return;
     }
 
@@ -116,6 +181,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   spendFood: (amount) => {
     if (amount <= 0) {
+      return true;
+    }
+
+    if (DEV_FIXED_FOOD !== null) {
+      set({
+        foodAmount: DEV_FIXED_FOOD,
+      });
       return true;
     }
 
@@ -168,4 +240,8 @@ export function getPersistedGameSnapshot(
     nestHealth: state.nestHealth,
     upgradeLevels: state.upgradeLevels,
   };
+}
+
+export function getPopulationLimit(upgradeLevels: Pick<UpgradeState, 'populationCapacity'>) {
+  return BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
 }

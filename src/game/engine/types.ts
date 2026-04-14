@@ -15,6 +15,9 @@ export interface GameWorld {
   readonly maxFoodOnField: number;
   readonly maxForageRadius: number;
   readonly foodPositions: Vec2[];
+  readonly enemyAnts?: Array<{ id: string; x: number; y: number; role?: 'BRUTE' | 'RUNNER' | 'SPITTER' }>;
+  readonly tauntingGuardians?: Array<{ id: string; x: number; y: number; tauntRadius: number }>;
+  readonly enemyNests?: Array<{ id: string; x: number; y: number; radius: number }>;
 }
 
 export interface GameEntity {

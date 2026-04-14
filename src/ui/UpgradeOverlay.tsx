@@ -14,6 +14,8 @@ import {
   MAX_FOOD_ON_FIELD,
   MAX_SPAWN_REDUCTION,
   MAX_UPGRADE_LEVEL,
+  BASE_POPULATION_CAPACITY,
+  POPULATION_CAPACITY_PER_LEVEL,
   MIN_IDLE_COOLDOWN_MULTIPLIER,
   MIN_SPAWN_INTERVAL_SECONDS,
   SPAWN_REDUCTION_PER_LEVEL,
@@ -40,7 +42,14 @@ function formatSeconds(seconds: number) {
 
 function formatEffect(
   language: GameLanguage,
-  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius',
+  upgradeKey:
+    | 'queenSpawnRate'
+    | 'carryCapacity'
+    | 'antSpeed'
+    | 'nestRecovery'
+    | 'foodCapacity'
+    | 'forageRadius'
+    | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -69,6 +78,10 @@ function formatEffect(
     return isZh ? `食物感知半徑 +${Math.min(level * 2, 60)}%` : `Food sensing radius +${Math.min(level * 2, 60)}%`;
   }
 
+  if (upgradeKey === 'populationCapacity') {
+    return isZh ? `人口上限 +${level * POPULATION_CAPACITY_PER_LEVEL}` : `Population cap +${level * POPULATION_CAPACITY_PER_LEVEL}`;
+  }
+
   return isZh
     ? `休息冷卻 -${Math.min(level * (IDLE_COOLDOWN_REDUCTION_PER_LEVEL * 100), (1 - MIN_IDLE_COOLDOWN_MULTIPLIER) * 100).toFixed(1)}%`
     : `Idle cooldown -${Math.min(level * (IDLE_COOLDOWN_REDUCTION_PER_LEVEL * 100), (1 - MIN_IDLE_COOLDOWN_MULTIPLIER) * 100).toFixed(1)}%`;
@@ -76,7 +89,14 @@ function formatEffect(
 
 function formatCurrentValue(
   language: GameLanguage,
-  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius',
+  upgradeKey:
+    | 'queenSpawnRate'
+    | 'carryCapacity'
+    | 'antSpeed'
+    | 'nestRecovery'
+    | 'foodCapacity'
+    | 'forageRadius'
+    | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -114,6 +134,11 @@ function formatCurrentValue(
       : `Current: ${Math.round(forageRadiusFactor * 100)}% map sensing radius`;
   }
 
+  if (upgradeKey === 'populationCapacity') {
+    const cap = BASE_POPULATION_CAPACITY + Math.max(0, Math.floor(level)) * POPULATION_CAPACITY_PER_LEVEL;
+    return isZh ? `目前：人口上限 ${cap}` : `Current: population cap ${cap}`;
+  }
+
   const cooldownMultiplier = Math.max(MIN_IDLE_COOLDOWN_MULTIPLIER, 1 - level * IDLE_COOLDOWN_REDUCTION_PER_LEVEL);
   const minIdleSeconds = 60 * cooldownMultiplier;
   const maxIdleSeconds = 180 * cooldownMultiplier;
@@ -125,7 +150,7 @@ function formatCurrentValue(
 const UPGRADE_CARD_TEXT: Record<
   GameLanguage,
   Record<
-    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius',
+    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
     { label: string; title: string }
   >
 > = {
@@ -135,6 +160,7 @@ const UPGRADE_CARD_TEXT: Record<
     antSpeed: { label: '螞蟻速度', title: '探索與搬運更快' },
     foodCapacity: { label: '食物容量', title: '地面可存在更多食物' },
     forageRadius: { label: '覓食範圍', title: '更遠距離偵測食物' },
+    populationCapacity: { label: '人口容量', title: '提高工蟻與兵蟻總人口上限' },
     nestRecovery: { label: '巢穴恢復', title: '回巢後更快再出發' },
   },
   en: {
@@ -143,6 +169,7 @@ const UPGRADE_CARD_TEXT: Record<
     antSpeed: { label: 'Ant Speed', title: 'Quicker Search Runs' },
     foodCapacity: { label: 'Food Capacity', title: 'More Food On The Ground' },
     forageRadius: { label: 'Forage Radius', title: 'Stronger Food Detection' },
+    populationCapacity: { label: 'Population Capacity', title: 'Increase Total Worker + Soldier Cap' },
     nestRecovery: { label: 'Nest Recovery', title: 'Shorter Rest After Delivery' },
   },
 };
@@ -172,6 +199,11 @@ const UPGRADE_CARDS = [
     key: 'forageRadius' as const,
     label: 'Forage Radius',
     title: 'Stronger Food Detection',
+  },
+  {
+    key: 'populationCapacity' as const,
+    label: 'Population Capacity',
+    title: 'Increase Total Unit Cap',
   },
   {
     key: 'nestRecovery' as const,
@@ -219,6 +251,7 @@ export function UpgradeOverlay({
   const upgradeLevels = useGameStore((state) => state.upgradeLevels);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
   const isZh = language === 'zh-TW';
+  const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
   const attackAlertLabel = isZh ? '敵襲警報' : 'Under Attack';
   const isUnderAttack = lastNestHitAt > 0 && now - lastNestHitAt < ATTACK_ALERT_DURATION_MS;
 
@@ -392,7 +425,7 @@ export function UpgradeOverlay({
           ) : null}
           <div>
             <p className="panel-label">{summaryColonyLabel}</p>
-            <strong className="panel-value">{colonySize} ants</strong>
+            <strong className="panel-value">{colonySize} / {populationLimit}</strong>
           </div>
           <div>
             <p className="panel-label">{summaryFoodLabel}</p>

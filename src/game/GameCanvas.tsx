@@ -24,6 +24,9 @@ export function GameCanvas() {
       onAntLost: (amount) => {
         useGameStore.getState().loseColonySize(amount);
       },
+      onPopulationUsageChanged: (amount) => {
+        useGameStore.getState().syncColonySize(amount);
+      },
       onNestHealthChanged: (health) => {
         useGameStore.getState().setNestHealth(health);
       },
@@ -31,6 +34,8 @@ export function GameCanvas() {
         useGameStore.getState().notifyNestHit();
       },
       getNestHealth: () => useGameStore.getState().nestHealth,
+      getPopulationUsage: () => useGameStore.getState().colonySize,
+      consumeBattleDeployments: () => useGameStore.getState().pullBattleDeployments(),
       getUpgradeLevels: () => useGameStore.getState().upgradeLevels,
     });
     engineRef.current = engine;

@@ -1,4 +1,5 @@
 import type { GameEntity, GameWorld } from '../engine/types';
+import { WORKER_TUNING } from '../antTuning';
 
 export type AntState = 'SEARCHING' | 'FOUND' | 'IDLE';
 
@@ -9,15 +10,17 @@ export interface AntConfig {
   state?: AntState;
 }
 
-const ANT_PIXEL_SIZE = 1;
-const SEARCH_SPEED = 26;
-const RETURN_SPEED = 44;
-const IDLE_RADIUS = 18;
-const NEST_IDLE_RADIUS = 8;
-const TURN_CHANCE = 0.015;
-const IDLE_RETURN_MIN_SECONDS = 60;
-const IDLE_RETURN_MAX_SECONDS = 180;
-const ANT_MAX_HEALTH = 8;
+const ANT_PIXEL_SIZE = WORKER_TUNING.pixelSize;
+const SEARCH_SPEED = WORKER_TUNING.searchSpeed;
+const RETURN_SPEED = WORKER_TUNING.returnSpeed;
+const IDLE_RADIUS = WORKER_TUNING.idleRadius;
+const NEST_IDLE_RADIUS = WORKER_TUNING.nestIdleRadius;
+const TURN_CHANCE = WORKER_TUNING.turnChance;
+const IDLE_RETURN_MIN_SECONDS = WORKER_TUNING.idleReturnMinSeconds;
+const IDLE_RETURN_MAX_SECONDS = WORKER_TUNING.idleReturnMaxSeconds;
+const ANT_MAX_HEALTH = WORKER_TUNING.maxHealth;
+const HOME_DEFENSE_ALERT_RADIUS = WORKER_TUNING.homeDefenseAlertRadius;
+const HOME_DEFENSE_MOVE_SPEED_MULTIPLIER = WORKER_TUNING.homeDefenseMoveSpeedMultiplier;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -73,6 +76,28 @@ function findNearestFood(
   return nearestFood;
 }
 
+function findNearestHomeThreat(x: number, y: number, world: GameWorld) {
+  const enemies = world.enemyAnts ?? [];
+  let nearest: { x: number; y: number; distance: number } | null = null;
+  const nestAlertRadius = world.nestRadius + HOME_DEFENSE_ALERT_RADIUS;
+
+  for (const enemy of enemies) {
+    const enemyDistanceToNest = Math.hypot(enemy.x - world.center.x, enemy.y - world.center.y);
+
+    if (enemyDistanceToNest > nestAlertRadius) {
+      continue;
+    }
+
+    const distance = Math.hypot(enemy.x - x, enemy.y - y);
+
+    if (nearest === null || distance < nearest.distance) {
+      nearest = { x: enemy.x, y: enemy.y, distance };
+    }
+  }
+
+  return nearest;
+}
+
 export class Ant implements GameEntity {
   public alive = true;
   public state: AntState;
@@ -85,7 +110,7 @@ export class Ant implements GameEntity {
   private idlePulse = Math.random() * Math.PI * 2;
   private idleReturnCountdownSeconds: number | null = null;
   private carriedFoodCount = 0;
-  private hp = ANT_MAX_HEALTH;
+  private hp: number = ANT_MAX_HEALTH;
 
   constructor(config: AntConfig) {
     this.id = config.id;
@@ -145,6 +170,18 @@ export class Ant implements GameEntity {
     }
 
     if (this.state === 'IDLE') {
+      const nearbyHomeThreat = findNearestHomeThreat(this.x, this.y, world);
+
+      if (nearbyHomeThreat) {
+        this.moveTowards(
+          nearbyHomeThreat.x,
+          nearbyHomeThreat.y,
+          SEARCH_SPEED * HOME_DEFENSE_MOVE_SPEED_MULTIPLIER * world.antSpeedMultiplier,
+          deltaTime,
+        );
+        return;
+      }
+
       this.idlePulse += deltaTime * 3;
 
       const targetX = world.center.x + Math.cos(this.idlePulse) * NEST_IDLE_RADIUS;

@@ -1,11 +1,4 @@
 import {
-  ENEMY_ANT_BASE_ATTACK_COOLDOWN_SECONDS,
-  ENEMY_ANT_BASE_DAMAGE,
-  ENEMY_ANT_BASE_HEALTH,
-  ENEMY_ANT_BASE_SPEED,
-  ENEMY_ANT_DAMAGE_SCALE_PER_LEVEL,
-  ENEMY_ANT_HEALTH_SCALE_PER_LEVEL,
-  ENEMY_ANT_SPEED_SCALE_PER_LEVEL,
   ENEMY_NEST_BASE_HEALTH,
   ENEMY_NEST_BASE_LEVEL_XP,
   ENEMY_NEST_BASE_MAX_ACTIVE_ENEMIES,
@@ -17,6 +10,7 @@ import {
   ENEMY_NEST_SPAWN_INTERVAL_DECAY,
   ENEMY_NEST_XP_PER_SECOND,
 } from '../upgradeBalances';
+import { ENEMY_ANT_TUNING } from '../antTuning';
 
 export interface EnemyNestConfig {
   id: string;
@@ -116,10 +110,10 @@ export class EnemyNest {
     const growthFactor = this.level - 1;
 
     return {
-      health: Math.max(1, Math.round(ENEMY_ANT_BASE_HEALTH * Math.pow(ENEMY_ANT_HEALTH_SCALE_PER_LEVEL, growthFactor))),
-      damage: Math.max(1, Math.round(ENEMY_ANT_BASE_DAMAGE * Math.pow(ENEMY_ANT_DAMAGE_SCALE_PER_LEVEL, growthFactor))),
-      speed: Math.round(ENEMY_ANT_BASE_SPEED * Math.pow(ENEMY_ANT_SPEED_SCALE_PER_LEVEL, growthFactor)),
-      attackCooldownSeconds: Math.max(0.35, ENEMY_ANT_BASE_ATTACK_COOLDOWN_SECONDS * Math.pow(0.985, growthFactor)),
+      health: Math.max(1, Math.round(ENEMY_ANT_TUNING.baseHealth * Math.pow(ENEMY_ANT_TUNING.healthScalePerLevel, growthFactor))),
+      damage: Math.max(1, Math.round(ENEMY_ANT_TUNING.baseDamage * Math.pow(ENEMY_ANT_TUNING.damageScalePerLevel, growthFactor))),
+      speed: Math.round(ENEMY_ANT_TUNING.baseSpeed * Math.pow(ENEMY_ANT_TUNING.speedScalePerLevel, growthFactor)),
+      attackCooldownSeconds: Math.max(0.35, ENEMY_ANT_TUNING.baseAttackCooldownSeconds * Math.pow(0.985, growthFactor)),
     };
   }
 

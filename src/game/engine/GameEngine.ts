@@ -1,9 +1,11 @@
 import { EntityManager } from './EntityManager';
 import type { GameWorld } from './types';
 import { Ant } from '../entities/Ant';
-import { EnemyAnt } from '../entities/EnemyAnt';
+import { EnemyAnt, EnemyAntRole, EnemySquadTactic } from '../entities/EnemyAnt';
 import { EnemyNest } from '../entities/EnemyNest';
 import { Food } from '../entities/Food';
+import { PlayerSoldier } from '../entities/PlayerSoldier';
+import { ANT_COMBAT_TUNING, ENEMY_ROLE_TUNING, ENEMY_TACTIC_TUNING } from '../antTuning';
 import {
   ANT_SPEED_MULTIPLIER_PER_LEVEL,
   BASE_ANT_FORAGE_RADIUS_FACTOR,
@@ -22,8 +24,13 @@ import {
   NEST_DEFENSE_DAMAGE_PER_SECOND,
   NEST_DEFENSE_RANGE,
   PLAYER_NEST_MAX_HEALTH,
+  BASE_POPULATION_CAPACITY,
+  POPULATION_CAPACITY_PER_LEVEL,
   SPAWN_REDUCTION_PER_LEVEL,
 } from '../upgradeBalances';
+import type { BattleDeployment } from '../../state/gameStore';
+import { AntRole, SquadMode } from '../combat/antTypes';
+import { ANT_TEMPLATES } from '../combat/antBalance';
 
 const BACKGROUND_COLOR = '#222222';
 const NEST_FILL = '#3b3026';
@@ -31,18 +38,34 @@ const NEST_RING = '#6f5a45';
 const FOOD_VALUE_PER_PICKUP = 1;
 const ANT_PICKUP_RADIUS = 1.5;
 const FOOD_SPAWN_MARGIN = 10;
-const ENEMY_ANT_GLOBAL_CAP = 90;
-const ANT_ATTACK_DAMAGE_PER_SECOND = 3;
-const ANT_ATTACK_RANGE = 7;
+const ENEMY_ANT_GLOBAL_CAP = ANT_COMBAT_TUNING.enemyGlobalCap;
+const ANT_ATTACK_DAMAGE_PER_SECOND = ANT_COMBAT_TUNING.workerAttackDamagePerSecond;
+const ANT_ATTACK_RANGE = ANT_COMBAT_TUNING.workerAttackRange;
+const ENEMY_MARCH_WORKER_HUNT_RANGE = ANT_COMBAT_TUNING.enemyMarchWorkerHuntRange;
+const WORKER_RETALIATE_DAMAGE = ANT_COMBAT_TUNING.workerRetaliateDamage;
+const WORKER_NEST_DEFENSE_BONUS_DPS = ANT_COMBAT_TUNING.workerNestDefenseBonusDps;
+const WORKER_NEST_DEFENSE_BONUS_RANGE = ANT_COMBAT_TUNING.workerNestDefenseBonusRange;
+const ENEMY_WAVE_BASE_INTERVAL_SECONDS = ANT_COMBAT_TUNING.enemyWaveBaseIntervalSeconds;
+const ENEMY_WAVE_INTERVAL_DECAY_PER_LEVEL = ANT_COMBAT_TUNING.enemyWaveIntervalDecayPerLevel;
+const ENEMY_WAVE_MIN_INTERVAL_SECONDS = ANT_COMBAT_TUNING.enemyWaveMinIntervalSeconds;
+const ENEMY_WAVE_MAX_SPAWN_PER_TICK = ANT_COMBAT_TUNING.enemyWaveMaxSpawnPerTick;
+
+interface EnemyWaveOrder {
+  role: EnemyAntRole;
+  tactic: EnemySquadTactic;
+}
 
 interface GameEngineOptions {
   onFoodCollected?: (amount: number) => void;
   getFoodAmount?: () => number;
   onAntSpawned?: (amount: number) => void;
   onAntLost?: (amount: number) => void;
+  onPopulationUsageChanged?: (amount: number) => void;
   onNestHealthChanged?: (health: number, maxHealth: number) => void;
   onNestDamaged?: (damageAmount: number, nextHealth: number, maxHealth: number) => void;
   getNestHealth?: () => number;
+  getPopulationUsage?: () => number;
+  consumeBattleDeployments?: () => BattleDeployment[];
   getUpgradeLevels?: () => {
     queenSpawnRate: number;
     carryCapacity: number;
@@ -50,6 +73,7 @@ interface GameEngineOptions {
     nestRecovery: number;
     foodCapacity: number;
     forageRadius: number;
+    populationCapacity: number;
   };
 }
 
@@ -74,13 +98,19 @@ export class GameEngine {
   private nextEnemyAntId = 0;
   private spawnAccumulatorSeconds = 0;
   private nestHealth = PLAYER_NEST_MAX_HEALTH;
+  private readonly enemyWaveTimersSeconds = new Map<string, number>();
+  private readonly enemyWaveCounters = new Map<string, number>();
+  private readonly enemyWaveQueues = new Map<string, EnemyWaveOrder[]>();
   private readonly onFoodCollected?: (amount: number) => void;
   private readonly getFoodAmount?: () => number;
   private readonly onAntSpawned?: (amount: number) => void;
   private readonly onAntLost?: (amount: number) => void;
+  private readonly onPopulationUsageChanged?: (amount: number) => void;
   private readonly onNestHealthChanged?: (health: number, maxHealth: number) => void;
   private readonly onNestDamaged?: (damageAmount: number, nextHealth: number, maxHealth: number) => void;
   private readonly getNestHealth?: () => number;
+  private readonly getPopulationUsage?: () => number;
+  private readonly consumeBattleDeployments?: () => BattleDeployment[];
   private readonly getUpgradeLevels?: () => {
     queenSpawnRate: number;
     carryCapacity: number;
@@ -88,6 +118,7 @@ export class GameEngine {
     nestRecovery: number;
     foodCapacity: number;
     forageRadius: number;
+    populationCapacity: number;
   };
 
   constructor(canvas: HTMLCanvasElement, options: GameEngineOptions = {}) {
@@ -103,9 +134,12 @@ export class GameEngine {
     this.getFoodAmount = options.getFoodAmount;
     this.onAntSpawned = options.onAntSpawned;
     this.onAntLost = options.onAntLost;
+    this.onPopulationUsageChanged = options.onPopulationUsageChanged;
     this.onNestHealthChanged = options.onNestHealthChanged;
     this.onNestDamaged = options.onNestDamaged;
     this.getNestHealth = options.getNestHealth;
+    this.getPopulationUsage = options.getPopulationUsage;
+    this.consumeBattleDeployments = options.consumeBattleDeployments;
     this.getUpgradeLevels = options.getUpgradeLevels;
     this.nestHealth = Math.max(0, Math.min(PLAYER_NEST_MAX_HEALTH, Math.floor(this.getNestHealth?.() ?? PLAYER_NEST_MAX_HEALTH)));
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -115,6 +149,7 @@ export class GameEngine {
     this.seedAnts();
     this.seedFood();
     this.seedEnemyNests(this.createWorld());
+    this.syncPopulationUsage();
     this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
   }
 
@@ -185,6 +220,7 @@ export class GameEngine {
   private stepSimulation(deltaTime: number, world: GameWorld) {
     this.time += deltaTime;
 
+    this.consumeQueuedBattleDeployments(world);
     this.updateRealtimeSpawning(deltaTime, world);
     this.updateEnemyNestSpawning(deltaTime, world);
     this.entityManager.update(deltaTime, world);
@@ -193,6 +229,7 @@ export class GameEngine {
     this.pruneFood();
     this.pruneEnemyNests();
     this.ensureFoodPopulation(world);
+    this.syncPopulationUsage();
   }
 
   private resize() {
@@ -215,6 +252,7 @@ export class GameEngine {
       nestRecovery: 0,
       foodCapacity: 0,
       forageRadius: 0,
+      populationCapacity: 0,
     };
 
     const maxFoodOnField = Math.min(
@@ -250,6 +288,30 @@ export class GameEngine {
       maxFoodOnField,
       maxForageRadius,
       foodPositions: this.foods.filter((food) => food.alive).map((food) => food.position),
+      enemyAnts: Array.from(this.entityManager.values())
+        .filter((entity): entity is EnemyAnt => entity instanceof EnemyAnt && entity.alive)
+        .map((enemyAnt) => ({
+          id: enemyAnt.id,
+          x: enemyAnt.position.x,
+          y: enemyAnt.position.y,
+          role: enemyAnt.role,
+        })),
+      tauntingGuardians: Array.from(this.entityManager.values())
+        .filter((entity): entity is PlayerSoldier => entity instanceof PlayerSoldier && entity.alive && entity.isGuardian)
+        .map((guardian) => ({
+          id: guardian.id,
+          x: guardian.position.x,
+          y: guardian.position.y,
+          tauntRadius: guardian.tauntRadius,
+        })),
+      enemyNests: this.enemyNests
+        .filter((enemyNest) => enemyNest.alive)
+        .map((enemyNest) => ({
+          id: enemyNest.id,
+          x: enemyNest.position.x,
+          y: enemyNest.position.y,
+          radius: enemyNest.radius,
+        })),
     };
   }
 
@@ -335,6 +397,23 @@ export class GameEngine {
   }
 
   private spawnSingleAnt(world: GameWorld) {
+    const upgradeLevels = this.getUpgradeLevels?.() ?? {
+      queenSpawnRate: 0,
+      carryCapacity: 0,
+      antSpeed: 0,
+      nestRecovery: 0,
+      foodCapacity: 0,
+      forageRadius: 0,
+      populationCapacity: 0,
+    };
+
+    const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
+    const currentPopulation = this.getPopulationUsage ? this.getPopulationUsage() : this.getPopulationCount();
+
+    if (currentPopulation >= populationLimit) {
+      return;
+    }
+
     const angle = Math.random() * Math.PI * 2;
     const distance = world.nestRadius + 16 + Math.random() * 10;
     const x = world.center.x + Math.cos(angle) * distance;
@@ -365,17 +444,18 @@ export class GameEngine {
 
   private seedEnemyNests(world: GameWorld) {
     this.enemyNests = [];
+    this.enemyWaveTimersSeconds.clear();
+    this.enemyWaveCounters.clear();
+    this.enemyWaveQueues.clear();
 
     for (let index = 0; index < ENEMY_NEST_INITIAL_COUNT; index += 1) {
       const position = this.createEnemyNestPosition(index, ENEMY_NEST_INITIAL_COUNT, world);
+      const id = `enemy-nest-${index}`;
 
-      this.enemyNests.push(
-        new EnemyNest({
-          id: `enemy-nest-${index}`,
-          x: position.x,
-          y: position.y,
-        }),
-      );
+      this.enemyNests.push(new EnemyNest({ id, x: position.x, y: position.y }));
+      this.enemyWaveTimersSeconds.set(id, this.getNextWaveCooldownSeconds(1));
+      this.enemyWaveCounters.set(id, 0);
+      this.enemyWaveQueues.set(id, []);
     }
   }
 
@@ -393,6 +473,13 @@ export class GameEngine {
 
   private updateEnemyNestSpawning(deltaTime: number, world: GameWorld) {
     for (const enemyNest of this.enemyNests) {
+      if (!enemyNest.alive) {
+        continue;
+      }
+
+      this.updateEnemyWaveQueue(enemyNest, deltaTime);
+      this.spawnWaveUnits(world, enemyNest);
+
       const spawnCount = enemyNest.update(deltaTime);
 
       if (spawnCount <= 0 || !enemyNest.alive) {
@@ -405,13 +492,14 @@ export class GameEngine {
           continue;
         }
 
-        this.spawnEnemyAnt(world, enemyNest);
+        this.spawnEnemyAnt(world, enemyNest, this.pickAmbientEnemyRole(enemyNest.currentLevel), EnemySquadTactic.SIEGE);
       }
     }
   }
 
-  private spawnEnemyAnt(world: GameWorld, enemyNest: EnemyNest) {
+  private spawnEnemyAnt(world: GameWorld, enemyNest: EnemyNest, role: EnemyAntRole, tactic: EnemySquadTactic) {
     const spawnStats = enemyNest.getSpawnStats();
+    const tunedStats = this.applyEnemyRoleModifiers(spawnStats, role, tactic);
     const nestPosition = enemyNest.position;
     const angle = Math.random() * Math.PI * 2;
     const distance = enemyNest.radius + 6 + Math.random() * 5;
@@ -422,12 +510,14 @@ export class GameEngine {
       new EnemyAnt({
         id: `enemy-ant-${this.nextEnemyAntId}`,
         nestId: enemyNest.id,
+        role,
+        tactic,
         x,
         y,
-        health: spawnStats.health,
-        damage: spawnStats.damage,
-        speed: spawnStats.speed,
-        attackCooldownSeconds: spawnStats.attackCooldownSeconds,
+        health: tunedStats.health,
+        damage: tunedStats.damage,
+        speed: tunedStats.speed,
+        attackCooldownSeconds: tunedStats.attackCooldownSeconds,
       }),
     );
 
@@ -534,6 +624,9 @@ export class GameEngine {
 
   private resolveEnemyCombat(deltaTime: number, world: GameWorld) {
     const ants = Array.from(this.entityManager.values()).filter((entity): entity is Ant => entity instanceof Ant);
+    const soldiers = Array.from(this.entityManager.values()).filter(
+      (entity): entity is PlayerSoldier => entity instanceof PlayerSoldier,
+    );
     const enemyAnts = Array.from(this.entityManager.values()).filter(
       (entity): entity is EnemyAnt => entity instanceof EnemyAnt,
     );
@@ -543,19 +636,69 @@ export class GameEngine {
         continue;
       }
 
-      const nearestAnt = this.findNearestAnt(ants, enemyAnt.position.x, enemyAnt.position.y, enemyAnt.attackRange);
+      const distanceToNestCenter = enemyAnt.distanceTo(world.center.x, world.center.y);
+      const isMarchingPhase = distanceToNestCenter > world.nestRadius + NEST_DEFENSE_RANGE + 8;
+      const huntedWorker = isMarchingPhase
+        ? this.findNearestAntInRange(ants, enemyAnt.position.x, enemyAnt.position.y, ENEMY_MARCH_WORKER_HUNT_RANGE)
+        : null;
 
-      if (nearestAnt && enemyAnt.canAttack()) {
-        const antKilled = nearestAnt.applyDamage(enemyAnt.damage);
+      const nearestUnit = this.findNearestDamageableUnit(
+        ants,
+        soldiers,
+        enemyAnt.position.x,
+        enemyAnt.position.y,
+        enemyAnt.attackRange,
+      );
 
-        if (antKilled) {
-          this.onAntLost?.(1);
+      const tauntTarget = this.findTauntingGuardian(
+        soldiers,
+        enemyAnt.position.x,
+        enemyAnt.position.y,
+        enemyAnt.attackRange,
+      );
+
+      const primaryTarget = tauntTarget ?? huntedWorker ?? nearestUnit;
+
+      if (primaryTarget && enemyAnt.canAttack()) {
+        const unitKilled = primaryTarget.applyDamage(enemyAnt.damage);
+
+        if (unitKilled) {
+          if (primaryTarget instanceof PlayerSoldier) {
+            this.onAntLost?.(primaryTarget.popCost);
+          } else {
+            this.onAntLost?.(1);
+          }
+        }
+
+        if (primaryTarget instanceof Ant && primaryTarget.alive) {
+          const retaliateKilled = enemyAnt.applyDamage(WORKER_RETALIATE_DAMAGE);
+
+          if (retaliateKilled) {
+            this.handleEnemyAntDeath(enemyAnt);
+            continue;
+          }
         }
 
         enemyAnt.triggerAttackCooldown();
       } else if (enemyAnt.canAttack() && enemyAnt.distanceTo(world.center.x, world.center.y) <= world.nestRadius + enemyAnt.attackRange) {
-        this.applyNestDamage(enemyAnt.damage);
-        enemyAnt.triggerAttackCooldown();
+        const nestInterceptor = this.findNestInterceptorGuardian(soldiers, world, enemyAnt.position.x, enemyAnt.position.y);
+
+        if (nestInterceptor) {
+          const distanceToGuardian = enemyAnt.distanceTo(nestInterceptor.position.x, nestInterceptor.position.y);
+
+          if (distanceToGuardian <= enemyAnt.attackRange + 2) {
+            const unitKilled = nestInterceptor.applyDamage(enemyAnt.damage);
+
+            if (unitKilled) {
+              this.onAntLost?.(nestInterceptor.popCost);
+            }
+
+            enemyAnt.triggerAttackCooldown();
+          }
+        } else {
+          this.applyNestDamage(enemyAnt.damage);
+          enemyAnt.triggerAttackCooldown();
+        }
       }
 
       if (enemyAnt.distanceTo(world.center.x, world.center.y) <= world.nestRadius + NEST_DEFENSE_RANGE) {
@@ -574,12 +717,38 @@ export class GameEngine {
 
         const antPosition = ant.position;
         const distance = Math.hypot(antPosition.x - enemyAnt.position.x, antPosition.y - enemyAnt.position.y);
+        const antDistanceToNest = Math.hypot(antPosition.x - world.center.x, antPosition.y - world.center.y);
+        const isDefendingNest =
+          enemyAnt.distanceTo(world.center.x, world.center.y) <= world.nestRadius + NEST_DEFENSE_RANGE + 10 &&
+          antDistanceToNest <= world.nestRadius + NEST_DEFENSE_RANGE + 14;
+        const antAttackRange = ANT_ATTACK_RANGE + (isDefendingNest ? WORKER_NEST_DEFENSE_BONUS_RANGE : 0);
+        const antDps = ANT_ATTACK_DAMAGE_PER_SECOND + (isDefendingNest ? WORKER_NEST_DEFENSE_BONUS_DPS : 0);
 
-        if (distance > ANT_ATTACK_RANGE) {
+        if (distance > antAttackRange) {
           continue;
         }
 
-        const wasKilled = enemyAnt.applyDamage(deltaTime * ANT_ATTACK_DAMAGE_PER_SECOND);
+        const wasKilled = enemyAnt.applyDamage(deltaTime * antDps);
+
+        if (wasKilled) {
+          this.handleEnemyAntDeath(enemyAnt);
+          break;
+        }
+      }
+
+      for (const soldier of soldiers) {
+        if (!soldier.alive) {
+          continue;
+        }
+
+        const distance = soldier.distanceTo(enemyAnt.position.x, enemyAnt.position.y);
+
+        if (distance > soldier.attackRange || !soldier.canAttack()) {
+          continue;
+        }
+
+        const wasKilled = enemyAnt.applyDamage(soldier.damage);
+        soldier.triggerAttackCooldown();
 
         if (wasKilled) {
           this.handleEnemyAntDeath(enemyAnt);
@@ -608,6 +777,22 @@ export class GameEngine {
 
         enemyNest.applyDamage(deltaTime * (ANT_ATTACK_DAMAGE_PER_SECOND * 0.75));
       }
+
+      for (const soldier of soldiers) {
+        if (!soldier.alive || !soldier.canAttack()) {
+          continue;
+        }
+
+        const nestPosition = enemyNest.position;
+        const distance = soldier.distanceTo(nestPosition.x, nestPosition.y);
+
+        if (distance > enemyNest.radius + soldier.attackRange) {
+          continue;
+        }
+
+        enemyNest.applyDamage(soldier.damage);
+        soldier.triggerAttackCooldown();
+      }
     }
   }
 
@@ -626,25 +811,113 @@ export class GameEngine {
     this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
   }
 
-  private findNearestAnt(ants: Ant[], x: number, y: number, maxRange: number) {
-    let nearestAnt: Ant | null = null;
+  private findNearestDamageableUnit(
+    ants: Ant[],
+    soldiers: PlayerSoldier[],
+    x: number,
+    y: number,
+    maxRange: number,
+  ) {
+    type DamageableUnit = Ant | PlayerSoldier;
+    let nearestUnit: DamageableUnit | null = null;
     let nearestDistance = maxRange;
+
+    const tauntTarget = this.findTauntingGuardian(soldiers, x, y, maxRange);
+
+    if (tauntTarget) {
+      return tauntTarget;
+    }
+
+    const units: DamageableUnit[] = [...ants, ...soldiers];
+
+    for (const unit of units) {
+      if (!unit.alive) {
+        continue;
+      }
+
+      const distance = Math.hypot(unit.position.x - x, unit.position.y - y);
+
+      if (distance <= nearestDistance) {
+        nearestDistance = distance;
+        nearestUnit = unit;
+      }
+    }
+
+    return nearestUnit;
+  }
+
+  private findTauntingGuardian(soldiers: PlayerSoldier[], x: number, y: number, maxRange: number) {
+    let nearestGuardian: PlayerSoldier | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const soldier of soldiers) {
+      if (!soldier.alive || !soldier.isGuardian) {
+        continue;
+      }
+
+      const distance = Math.hypot(soldier.position.x - x, soldier.position.y - y);
+
+      if (distance > soldier.tauntRadius + maxRange + 6) {
+        continue;
+      }
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestGuardian = soldier;
+      }
+    }
+
+    return nearestGuardian;
+  }
+
+  private findNearestAntInRange(ants: Ant[], x: number, y: number, range: number) {
+    let nearest: Ant | null = null;
+    let nearestDistance = range;
 
     for (const ant of ants) {
       if (!ant.alive) {
         continue;
       }
 
-      const antPosition = ant.position;
-      const distance = Math.hypot(antPosition.x - x, antPosition.y - y);
+      const distance = Math.hypot(ant.position.x - x, ant.position.y - y);
 
       if (distance <= nearestDistance) {
         nearestDistance = distance;
-        nearestAnt = ant;
+        nearest = ant;
       }
     }
 
-    return nearestAnt;
+    return nearest;
+  }
+
+  private findNestInterceptorGuardian(soldiers: PlayerSoldier[], world: GameWorld, enemyX: number, enemyY: number) {
+    let interceptor: PlayerSoldier | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const soldier of soldiers) {
+      if (!soldier.alive || !soldier.isGuardian) {
+        continue;
+      }
+
+      const distanceToNest = Math.hypot(soldier.position.x - world.center.x, soldier.position.y - world.center.y);
+
+      if (distanceToNest > world.nestRadius + 64) {
+        continue;
+      }
+
+      const distanceToEnemy = Math.hypot(soldier.position.x - enemyX, soldier.position.y - enemyY);
+
+      if (distanceToEnemy > soldier.tauntRadius + 30) {
+        continue;
+      }
+
+      if (distanceToEnemy < nearestDistance) {
+        nearestDistance = distanceToEnemy;
+        interceptor = soldier;
+      }
+    }
+
+    return interceptor;
   }
 
   private handleEnemyAntDeath(enemyAnt: EnemyAnt) {
@@ -667,11 +940,212 @@ export class GameEngine {
     return count;
   }
 
+  private getPopulationCount() {
+    let count = 0;
+
+    for (const entity of this.entityManager.values()) {
+      if (entity instanceof Ant && entity.alive) {
+        count += 1;
+      } else if (entity instanceof PlayerSoldier && entity.alive) {
+        count += entity.popCost;
+      }
+    }
+
+    return count;
+  }
+
+  private syncPopulationUsage() {
+    this.onPopulationUsageChanged?.(this.getPopulationCount());
+  }
+
   private pruneFood() {
     this.foods = this.foods.filter((food) => food.alive);
   }
 
   private pruneEnemyNests() {
     this.enemyNests = this.enemyNests.filter((enemyNest) => enemyNest.alive);
+
+    const aliveIds = new Set(this.enemyNests.map((enemyNest) => enemyNest.id));
+
+    for (const nestId of this.enemyWaveTimersSeconds.keys()) {
+      if (!aliveIds.has(nestId)) {
+        this.enemyWaveTimersSeconds.delete(nestId);
+        this.enemyWaveCounters.delete(nestId);
+        this.enemyWaveQueues.delete(nestId);
+      }
+    }
+  }
+
+  private updateEnemyWaveQueue(enemyNest: EnemyNest, deltaTime: number) {
+    const nestId = enemyNest.id;
+    const timer = (this.enemyWaveTimersSeconds.get(nestId) ?? this.getNextWaveCooldownSeconds(enemyNest.currentLevel)) - deltaTime;
+
+    if (timer > 0) {
+      this.enemyWaveTimersSeconds.set(nestId, timer);
+      return;
+    }
+
+    const currentWave = this.enemyWaveCounters.get(nestId) ?? 0;
+    const nextWave = currentWave + 1;
+    this.enemyWaveCounters.set(nestId, nextWave);
+    this.enemyWaveTimersSeconds.set(nestId, this.getNextWaveCooldownSeconds(enemyNest.currentLevel));
+
+    const queue = this.enemyWaveQueues.get(nestId) ?? [];
+    queue.push(...this.createWaveOrders(enemyNest.currentLevel, nextWave));
+    this.enemyWaveQueues.set(nestId, queue);
+  }
+
+  private spawnWaveUnits(world: GameWorld, enemyNest: EnemyNest) {
+    const queue = this.enemyWaveQueues.get(enemyNest.id) ?? [];
+
+    if (queue.length === 0) {
+      return;
+    }
+
+    let spawned = 0;
+
+    while (queue.length > 0 && spawned < ENEMY_WAVE_MAX_SPAWN_PER_TICK) {
+      if (this.getAliveEnemyAntCount() >= ENEMY_ANT_GLOBAL_CAP) {
+        break;
+      }
+
+      const order = queue.shift();
+
+      if (!order) {
+        break;
+      }
+
+      this.spawnEnemyAnt(world, enemyNest, order.role, order.tactic);
+      spawned += 1;
+    }
+
+    this.enemyWaveQueues.set(enemyNest.id, queue);
+  }
+
+  private createWaveOrders(level: number, waveIndex: number): EnemyWaveOrder[] {
+    const waveSize = Math.max(3, 3 + Math.floor(level / 3) + Math.min(4, Math.floor(waveIndex / 2)));
+    const tacticCycle: EnemySquadTactic[] = [EnemySquadTactic.RAID, EnemySquadTactic.HARASS, EnemySquadTactic.SIEGE];
+    const tactic = tacticCycle[(waveIndex - 1) % tacticCycle.length] ?? EnemySquadTactic.RAID;
+    const bruteCount = Math.max(1, Math.floor(waveSize * 0.25));
+    const spitterCount = level >= 3 ? Math.max(1, Math.floor(waveSize * 0.2)) : 0;
+    const runnerCount = Math.max(1, waveSize - bruteCount - spitterCount);
+
+    const orders: EnemyWaveOrder[] = [];
+
+    for (let i = 0; i < bruteCount; i += 1) {
+      orders.push({ role: EnemyAntRole.BRUTE, tactic });
+    }
+
+    for (let i = 0; i < spitterCount; i += 1) {
+      orders.push({ role: EnemyAntRole.SPITTER, tactic });
+    }
+
+    for (let i = 0; i < runnerCount; i += 1) {
+      orders.push({ role: EnemyAntRole.RUNNER, tactic });
+    }
+
+    for (let index = orders.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      const current = orders[index];
+      orders[index] = orders[swapIndex] as EnemyWaveOrder;
+      orders[swapIndex] = current as EnemyWaveOrder;
+    }
+
+    return orders;
+  }
+
+  private getNextWaveCooldownSeconds(level: number) {
+    const scaled = ENEMY_WAVE_BASE_INTERVAL_SECONDS * Math.pow(ENEMY_WAVE_INTERVAL_DECAY_PER_LEVEL, Math.max(0, level - 1));
+    return Math.max(ENEMY_WAVE_MIN_INTERVAL_SECONDS, scaled) + Math.random() * 2.5;
+  }
+
+  private pickAmbientEnemyRole(level: number) {
+    if (level >= 5) {
+      const roll = Math.random();
+      if (roll < 0.2) return EnemyAntRole.BRUTE;
+      if (roll < 0.4) return EnemyAntRole.SPITTER;
+      return EnemyAntRole.RUNNER;
+    }
+
+    if (level >= 3 && Math.random() < 0.25) {
+      return EnemyAntRole.SPITTER;
+    }
+
+    return Math.random() < 0.3 ? EnemyAntRole.BRUTE : EnemyAntRole.RUNNER;
+  }
+
+  private applyEnemyRoleModifiers(
+    stats: { health: number; damage: number; speed: number; attackCooldownSeconds: number },
+    role: EnemyAntRole,
+    tactic: EnemySquadTactic,
+  ) {
+    const roleTuning = ENEMY_ROLE_TUNING[role] ?? ENEMY_ROLE_TUNING.RUNNER;
+    const tacticTuning = ENEMY_TACTIC_TUNING[tactic] ?? ENEMY_TACTIC_TUNING.HARASS;
+
+    const healthMultiplier = roleTuning.healthMultiplier;
+    const damageMultiplier = roleTuning.damageMultiplier * tacticTuning.damageMultiplier;
+    const speedMultiplier = roleTuning.speedMultiplier * tacticTuning.speedMultiplier;
+    const cooldownMultiplier = roleTuning.cooldownMultiplier;
+
+    return {
+      health: Math.max(1, Math.round(stats.health * healthMultiplier)),
+      damage: Math.max(1, Math.round(stats.damage * damageMultiplier)),
+      speed: Math.max(8, Math.round(stats.speed * speedMultiplier)),
+      attackCooldownSeconds: Math.max(0.25, stats.attackCooldownSeconds * cooldownMultiplier),
+    };
+  }
+
+  private consumeQueuedBattleDeployments(world: GameWorld) {
+    const deployments = this.consumeBattleDeployments?.() ?? [];
+
+    if (deployments.length === 0) {
+      return;
+    }
+
+    for (const deployment of deployments) {
+      for (const [roleKey, rawCount] of Object.entries(deployment.composition) as [AntRole, number][]) {
+        const count = Math.max(0, Math.floor(rawCount || 0));
+
+        for (let index = 0; index < count; index += 1) {
+          this.spawnBattleUnit(world, roleKey, deployment.mode);
+        }
+      }
+    }
+  }
+
+  private spawnBattleUnit(world: GameWorld, role: AntRole, mode: SquadMode) {
+    const upgradeLevels = this.getUpgradeLevels?.() ?? {
+      queenSpawnRate: 0,
+      carryCapacity: 0,
+      antSpeed: 0,
+      nestRecovery: 0,
+      foodCapacity: 0,
+      forageRadius: 0,
+      populationCapacity: 0,
+    };
+    const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
+    const currentPopulation = this.getPopulationUsage ? this.getPopulationUsage() : this.getPopulationCount();
+
+    if (currentPopulation >= populationLimit) {
+      return;
+    }
+
+    const angle = Math.random() * Math.PI * 2;
+    const distance = world.nestRadius + 12 + Math.random() * 12;
+    const x = world.center.x + Math.cos(angle) * distance;
+    const y = world.center.y + Math.sin(angle) * distance;
+
+    this.entityManager.add(
+      new PlayerSoldier({
+        id: `soldier-${role.toLowerCase()}-${this.nextAntId}`,
+        role,
+        mode,
+        x,
+        y,
+      }),
+    );
+
+    this.nextAntId += 1;
+    this.onAntSpawned?.(Math.max(1, ANT_TEMPLATES[role].base.popCost));
   }
 }
