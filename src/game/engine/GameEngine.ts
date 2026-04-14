@@ -2,22 +2,28 @@ import { EntityManager } from './EntityManager';
 import type { GameWorld } from './types';
 import { Ant } from '../entities/Ant';
 import { Food } from '../entities/Food';
+import {
+  ANT_SPEED_MULTIPLIER_PER_LEVEL,
+  BASE_ANT_FORAGE_RADIUS_FACTOR,
+  BASE_MAX_FOOD_ON_FIELD,
+  BASE_SPAWN_INTERVAL_SECONDS,
+  FOOD_CAPACITY_PER_LEVEL,
+  FORAGE_RADIUS_FACTOR_PER_LEVEL,
+  IDLE_COOLDOWN_REDUCTION_PER_LEVEL,
+  MAX_ANT_FORAGE_RADIUS_FACTOR,
+  MAX_ANT_SPEED_MULTIPLIER,
+  MAX_FOOD_ON_FIELD,
+  MAX_SPAWN_REDUCTION,
+  MIN_IDLE_COOLDOWN_MULTIPLIER,
+  MIN_SPAWN_INTERVAL_SECONDS,
+  SPAWN_REDUCTION_PER_LEVEL,
+} from '../upgradeBalances';
 
 const BACKGROUND_COLOR = '#222222';
 const NEST_FILL = '#3b3026';
 const NEST_RING = '#6f5a45';
-const BASE_MAX_FOOD_ON_FIELD = 14;
-const FOOD_CAPACITY_PER_LEVEL = 2;
-const MAX_FOOD_ON_FIELD = 40;
 const FOOD_VALUE_PER_PICKUP = 1;
 const ANT_PICKUP_RADIUS = 1.5;
-const BASE_SPAWN_INTERVAL_SECONDS = 30;
-const MIN_SPAWN_INTERVAL_SECONDS = 7.5;
-const SPAWN_REDUCTION_PER_LEVEL = 0.1;
-const MAX_SPAWN_REDUCTION = 0.75;
-const BASE_ANT_FORAGE_RADIUS_FACTOR = 0.03;
-const FORAGE_RADIUS_FACTOR_PER_LEVEL = 0.02;
-const MAX_ANT_FORAGE_RADIUS_FACTOR = 0.375;
 const FOOD_SPAWN_MARGIN = 10;
 
 interface GameEngineOptions {
@@ -39,8 +45,12 @@ export class GameEngine {
   private readonly context: CanvasRenderingContext2D;
   private readonly entityManager = new EntityManager();
   private readonly resizeObserver: ResizeObserver;
-  private animationFrameId: number | null = null;
+  private readonly handleVisibilityChange = () => {
+    this.scheduleNextTick();
+  };
+  private tickTimeoutId: number | null = null;
   private lastTimestamp = 0;
+  private accumulatedSeconds = 0;
   private width = 0;
   private height = 0;
   private time = 0;
@@ -75,48 +85,84 @@ export class GameEngine {
     this.getUpgradeLevels = options.getUpgradeLevels;
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.resize();
     this.seedAnts();
     this.seedFood();
   }
 
   start() {
-    if (this.animationFrameId !== null) {
+    if (this.tickTimeoutId !== null) {
       return;
     }
 
     this.lastTimestamp = performance.now();
-    this.animationFrameId = requestAnimationFrame(this.tick);
+    this.scheduleNextTick();
   }
 
   stop() {
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
+    if (this.tickTimeoutId !== null) {
+      window.clearTimeout(this.tickTimeoutId);
+      this.tickTimeoutId = null;
     }
   }
 
   destroy() {
     this.stop();
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.resizeObserver.disconnect();
     this.entityManager.clear();
   }
 
-  private readonly tick = (timestamp: number) => {
-    const deltaTime = Math.min((timestamp - this.lastTimestamp) / 1000, 0.05);
+  private readonly tick = () => {
+    const timestamp = performance.now();
+    const deltaTime = Math.max(0, (timestamp - this.lastTimestamp) / 1000);
     this.lastTimestamp = timestamp;
+    this.accumulatedSeconds += deltaTime;
+
+    const maxSimulationSecondsPerTick = 2;
+    const simulationStepSeconds = 0.05;
+    let processedSeconds = 0;
+
+    while (this.accumulatedSeconds >= simulationStepSeconds && processedSeconds < maxSimulationSecondsPerTick) {
+      const world = this.createWorld();
+      this.stepSimulation(simulationStepSeconds, world);
+      this.accumulatedSeconds -= simulationStepSeconds;
+      processedSeconds += simulationStepSeconds;
+    }
+
+    if (this.accumulatedSeconds > 0 && processedSeconds < maxSimulationSecondsPerTick) {
+      const world = this.createWorld();
+      const finalStep = Math.min(this.accumulatedSeconds, maxSimulationSecondsPerTick - processedSeconds);
+      this.stepSimulation(finalStep, world);
+      this.accumulatedSeconds -= finalStep;
+    }
+
+    if (!document.hidden) {
+      this.render(this.createWorld());
+    }
+
+    this.scheduleNextTick();
+  };
+
+  private scheduleNextTick() {
+    if (this.tickTimeoutId !== null) {
+      window.clearTimeout(this.tickTimeoutId);
+    }
+
+    const delay = document.hidden ? 250 : 16;
+    this.tickTimeoutId = window.setTimeout(this.tick, delay);
+  }
+
+  private stepSimulation(deltaTime: number, world: GameWorld) {
     this.time += deltaTime;
 
-    const world = this.createWorld();
     this.updateRealtimeSpawning(deltaTime, world);
     this.entityManager.update(deltaTime, world);
     this.resolveFoodPickups(world);
     this.pruneFood();
     this.ensureFoodPopulation(world);
-    this.render(world);
-
-    this.animationFrameId = requestAnimationFrame(this.tick);
-  };
+  }
 
   private resize() {
     const { width, height } = this.canvas.getBoundingClientRect();
@@ -161,8 +207,14 @@ export class GameEngine {
       },
       nestRadius: Math.max(38, Math.min(this.width, this.height) * 0.08),
       time: this.time,
-      antSpeedMultiplier: Math.min(2, 1 + upgradeLevels.antSpeed * 0.12),
-      idleCooldownMultiplier: Math.max(0.35, 1 - upgradeLevels.nestRecovery * 0.1),
+      antSpeedMultiplier: Math.min(
+        MAX_ANT_SPEED_MULTIPLIER,
+        1 + Math.max(0, upgradeLevels.antSpeed) * ANT_SPEED_MULTIPLIER_PER_LEVEL,
+      ),
+      idleCooldownMultiplier: Math.max(
+        MIN_IDLE_COOLDOWN_MULTIPLIER,
+        1 - Math.max(0, upgradeLevels.nestRecovery) * IDLE_COOLDOWN_REDUCTION_PER_LEVEL,
+      ),
       carryCapacityBonus: Math.max(0, upgradeLevels.carryCapacity),
       maxFoodOnField,
       maxForageRadius,
@@ -178,7 +230,6 @@ export class GameEngine {
     this.drawFood(world);
     this.drawNest(world);
     this.entityManager.draw(this.context, world);
-    this.drawScore();
   }
 
   private drawFood(world: GameWorld) {
@@ -200,17 +251,6 @@ export class GameEngine {
     this.context.lineWidth = 4;
     this.context.strokeStyle = NEST_RING;
     this.context.stroke();
-  }
-
-  private drawScore() {
-    const foodAmount = this.getFoodAmount ? this.getFoodAmount() : 0;
-
-    this.context.save();
-    this.context.fillStyle = '#d8f0b0';
-    this.context.font = '600 14px Inter, system-ui, sans-serif';
-    this.context.textBaseline = 'top';
-    this.context.fillText(`Food: ${foodAmount}`, 16, 16);
-    this.context.restore();
   }
 
   private seedAnts() {

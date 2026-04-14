@@ -1,7 +1,5 @@
-import type { OfflineProgressResult, SavedGameState } from './types';
-
-const MIN_SPAWN_INTERVAL_MS = 6000;
-const BASE_SPAWN_INTERVAL_MS = 30000;
+import type { OfflineProgressResult, SavedGameState } from './types.js';
+import { BASE_SPAWN_INTERVAL_MS, MAX_SPAWN_REDUCTION, MIN_SPAWN_INTERVAL_MS, SPAWN_REDUCTION_PER_LEVEL } from './upgradeBalances.js';
 const BASE_FOOD_CONSUMPTION_PER_ANT_PER_MINUTE = 0.24;
 const BASE_FOOD_GATHER_INTERVAL_MS = 15000;
 
@@ -10,7 +8,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function calculateSpawnIntervalMs(queenSpawnRateLevel: number) {
-  const reduction = clamp(queenSpawnRateLevel * 0.1, 0, 0.75);
+  const reduction = clamp(queenSpawnRateLevel * SPAWN_REDUCTION_PER_LEVEL, 0, MAX_SPAWN_REDUCTION);
   return Math.max(MIN_SPAWN_INTERVAL_MS, BASE_SPAWN_INTERVAL_MS * (1 - reduction));
 }
 

@@ -1,6 +1,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { SavedGameState } from './types';
+import type { SavedGameState } from './types.js';
+import { MAX_UPGRADE_LEVEL } from './upgradeBalances.js';
 
 const DEFAULT_STATE: SavedGameState = {
   colony_size: 12,
@@ -28,7 +29,7 @@ export async function loadGameState(): Promise<SavedGameState> {
       return { ...DEFAULT_STATE, last_sync_timestamp: Date.now() };
     }
 
-    return parsed;
+    return normalizeSavedGameState(parsed);
   } catch (error) {
     return { ...DEFAULT_STATE, last_sync_timestamp: Date.now() };
   }
@@ -36,7 +37,7 @@ export async function loadGameState(): Promise<SavedGameState> {
 
 export async function saveGameState(state: SavedGameState): Promise<void> {
   await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(SAVE_FILE, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  await writeFile(SAVE_FILE, `${JSON.stringify(normalizeSavedGameState(state), null, 2)}\n`, 'utf8');
 }
 
 function isSavedGameState(value: unknown): value is SavedGameState {
@@ -59,4 +60,22 @@ function isSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number'
   );
+}
+
+function normalizeSavedGameState(state: SavedGameState): SavedGameState {
+  return {
+    ...state,
+    upgrade_levels: {
+      queenSpawnRate: clampUpgradeLevel(state.upgrade_levels.queenSpawnRate),
+      carryCapacity: clampUpgradeLevel(state.upgrade_levels.carryCapacity),
+      antSpeed: clampUpgradeLevel(state.upgrade_levels.antSpeed),
+      nestRecovery: clampUpgradeLevel(state.upgrade_levels.nestRecovery),
+      foodCapacity: clampUpgradeLevel(state.upgrade_levels.foodCapacity),
+      forageRadius: clampUpgradeLevel(state.upgrade_levels.forageRadius),
+    },
+  };
+}
+
+function clampUpgradeLevel(level: number) {
+  return Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(level)));
 }

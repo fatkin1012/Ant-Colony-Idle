@@ -1,7 +1,9 @@
 import cors from 'cors';
 import express from 'express';
-import { loadGameState, saveGameState, type SavedGameState } from './stateStore';
-import { calculateOfflineProgress } from './offlineProgress';
+import { loadGameState, saveGameState } from './stateStore.js';
+import { calculateOfflineProgress } from './offlineProgress.js';
+import { MAX_UPGRADE_LEVEL } from './upgradeBalances.js';
+import type { SavedGameState } from './types.js';
 
 const app = express();
 
@@ -24,12 +26,12 @@ app.post('/api/save', async (request, response) => {
     colony_size: Math.max(0, Math.floor(body.colony_size)),
     food_amount: Math.max(0, Math.floor(body.food_amount)),
     upgrade_levels: {
-      queenSpawnRate: Math.max(0, Math.floor(body.upgrade_levels.queenSpawnRate)),
-      carryCapacity: Math.max(0, Math.floor(body.upgrade_levels.carryCapacity)),
-      antSpeed: Math.max(0, Math.floor(body.upgrade_levels.antSpeed)),
-      nestRecovery: Math.max(0, Math.floor(body.upgrade_levels.nestRecovery)),
-      foodCapacity: Math.max(0, Math.floor(body.upgrade_levels.foodCapacity)),
-      forageRadius: Math.max(0, Math.floor(body.upgrade_levels.forageRadius)),
+      queenSpawnRate: clampUpgradeLevel(body.upgrade_levels.queenSpawnRate),
+      carryCapacity: clampUpgradeLevel(body.upgrade_levels.carryCapacity),
+      antSpeed: clampUpgradeLevel(body.upgrade_levels.antSpeed),
+      nestRecovery: clampUpgradeLevel(body.upgrade_levels.nestRecovery),
+      foodCapacity: clampUpgradeLevel(body.upgrade_levels.foodCapacity),
+      forageRadius: clampUpgradeLevel(body.upgrade_levels.forageRadius),
     },
     last_sync_timestamp: Date.now(),
   } satisfies SavedGameState;
@@ -72,4 +74,8 @@ function isValidSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number'
   );
+}
+
+function clampUpgradeLevel(level: number) {
+  return Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(level)));
 }

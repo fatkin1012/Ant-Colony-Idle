@@ -1,0 +1,6 @@
+export const MAX_UPGRADE_LEVEL = 30;
+
+export const BASE_SPAWN_INTERVAL_MS = 30000;
+export const MIN_SPAWN_INTERVAL_MS = 7500;
+export const SPAWN_REDUCTION_PER_LEVEL = 0.025;
+export const MAX_SPAWN_REDUCTION = 0.75;

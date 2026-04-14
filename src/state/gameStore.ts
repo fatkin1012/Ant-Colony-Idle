@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { MAX_UPGRADE_LEVEL } from '../game/upgradeBalances';
+import type { PersistedGameState } from './gamePersistence';
 
 export type UpgradeKey = 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius';
 
@@ -15,6 +17,7 @@ interface GameState {
   colonySize: number;
   foodAmount: number;
   upgradeLevels: UpgradeState;
+  hydrateFromPersistence: (state: PersistedGameState) => void;
   incrementColonySize: (amount?: number) => void;
   earnFood: (amount: number) => void;
   spendFood: (amount: number) => boolean;
@@ -37,6 +40,10 @@ function calculateCost(baseCost: number, level: number) {
   return Math.floor(baseCost * Math.pow(UPGRADE_COST_GROWTH, level));
 }
 
+function clampUpgradeLevel(level: number) {
+  return Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(level)));
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
   foodAmount: 0,
@@ -47,6 +54,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     nestRecovery: 0,
     foodCapacity: 0,
     forageRadius: 0,
+  },
+  hydrateFromPersistence: (state) => {
+    set({
+      colonySize: Math.max(0, Math.floor(state.colonySize)),
+      foodAmount: Math.max(0, Math.floor(state.foodAmount)),
+      upgradeLevels: {
+        queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
+        carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
+        antSpeed: clampUpgradeLevel(state.upgradeLevels.antSpeed),
+        nestRecovery: clampUpgradeLevel(state.upgradeLevels.nestRecovery),
+        foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
+        forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
+      },
+    });
   },
   incrementColonySize: (amount = 1) => {
     if (amount <= 0) {
@@ -85,6 +106,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   purchaseUpgrade: (upgradeKey) => {
     const currentLevel = get().upgradeLevels[upgradeKey];
+
+    if (currentLevel >= MAX_UPGRADE_LEVEL) {
+      return false;
+    }
+
     const cost = calculateCost(UPGRADE_BASE_COST[upgradeKey], currentLevel);
 
     if (!get().spendFood(cost)) {
@@ -105,3 +131,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     return calculateCost(UPGRADE_BASE_COST[upgradeKey], currentLevel);
   },
 }));
+
+export function getPersistedGameSnapshot(state: Pick<GameState, 'colonySize' | 'foodAmount' | 'upgradeLevels'>): PersistedGameState {
+  return {
+    colonySize: state.colonySize,
+    foodAmount: state.foodAmount,
+    upgradeLevels: state.upgradeLevels,
+  };
+}
