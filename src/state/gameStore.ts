@@ -16,9 +16,14 @@ export interface UpgradeState {
 interface GameState {
   colonySize: number;
   foodAmount: number;
+  nestHealth: number;
+  lastNestHitAt: number;
   upgradeLevels: UpgradeState;
   hydrateFromPersistence: (state: PersistedGameState) => void;
   incrementColonySize: (amount?: number) => void;
+  loseColonySize: (amount?: number) => void;
+  setNestHealth: (health: number) => void;
+  notifyNestHit: () => void;
   earnFood: (amount: number) => void;
   spendFood: (amount: number) => boolean;
   purchaseUpgrade: (upgradeKey: UpgradeKey) => boolean;
@@ -47,6 +52,8 @@ function clampUpgradeLevel(level: number) {
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
   foodAmount: 0,
+  nestHealth: 100,
+  lastNestHitAt: 0,
   upgradeLevels: {
     queenSpawnRate: 0,
     carryCapacity: 0,
@@ -59,6 +66,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       colonySize: Math.max(0, Math.floor(state.colonySize)),
       foodAmount: Math.max(0, Math.floor(state.foodAmount)),
+      nestHealth: Math.max(0, Math.floor(state.nestHealth)),
       upgradeLevels: {
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
@@ -77,6 +85,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({
       colonySize: state.colonySize + Math.floor(amount),
     }));
+  },
+  loseColonySize: (amount = 1) => {
+    if (amount <= 0) {
+      return;
+    }
+
+    set((state) => ({
+      colonySize: Math.max(0, state.colonySize - Math.floor(amount)),
+    }));
+  },
+  setNestHealth: (health) => {
+    set({
+      nestHealth: Math.max(0, Math.floor(health)),
+    });
+  },
+  notifyNestHit: () => {
+    set({
+      lastNestHitAt: Date.now(),
+    });
   },
   earnFood: (amount) => {
     if (amount <= 0) {
@@ -132,10 +159,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 }));
 
-export function getPersistedGameSnapshot(state: Pick<GameState, 'colonySize' | 'foodAmount' | 'upgradeLevels'>): PersistedGameState {
+export function getPersistedGameSnapshot(
+  state: Pick<GameState, 'colonySize' | 'foodAmount' | 'nestHealth' | 'upgradeLevels'>,
+): PersistedGameState {
   return {
     colonySize: state.colonySize,
     foodAmount: state.foodAmount,
+    nestHealth: state.nestHealth,
     upgradeLevels: state.upgradeLevels,
   };
 }

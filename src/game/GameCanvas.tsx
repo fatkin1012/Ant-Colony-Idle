@@ -21,6 +21,16 @@ export function GameCanvas() {
       onAntSpawned: (amount) => {
         useGameStore.getState().incrementColonySize(amount);
       },
+      onAntLost: (amount) => {
+        useGameStore.getState().loseColonySize(amount);
+      },
+      onNestHealthChanged: (health) => {
+        useGameStore.getState().setNestHealth(health);
+      },
+      onNestDamaged: () => {
+        useGameStore.getState().notifyNestHit();
+      },
+      getNestHealth: () => useGameStore.getState().nestHealth,
       getUpgradeLevels: () => useGameStore.getState().upgradeLevels,
     });
     engineRef.current = engine;

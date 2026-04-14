@@ -17,6 +17,7 @@ const NEST_IDLE_RADIUS = 8;
 const TURN_CHANCE = 0.015;
 const IDLE_RETURN_MIN_SECONDS = 60;
 const IDLE_RETURN_MAX_SECONDS = 180;
+const ANT_MAX_HEALTH = 8;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -84,6 +85,7 @@ export class Ant implements GameEntity {
   private idlePulse = Math.random() * Math.PI * 2;
   private idleReturnCountdownSeconds: number | null = null;
   private carriedFoodCount = 0;
+  private hp = ANT_MAX_HEALTH;
 
   constructor(config: AntConfig) {
     this.id = config.id;
@@ -106,6 +108,22 @@ export class Ant implements GameEntity {
 
   collectFood() {
     this.carriedFoodCount += 1;
+  }
+
+  applyDamage(amount: number) {
+    if (!this.alive || amount <= 0) {
+      return false;
+    }
+
+    this.hp -= amount;
+
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.alive = false;
+      return true;
+    }
+
+    return false;
   }
 
   shouldReturnToNest(carryCapacityBonus: number) {

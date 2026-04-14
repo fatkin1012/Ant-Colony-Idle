@@ -39,6 +39,7 @@ const TRANSLATIONS: Record<
     resetConfirm: string;
     summaryColony: string;
     summaryFood: string;
+    summaryNestHealth: string;
     showMenu: string;
     hideMenu: string;
   }
@@ -57,6 +58,7 @@ const TRANSLATIONS: Record<
     resetConfirm: '確定要重置進度嗎？這個動作無法還原。',
     summaryColony: '蟻群',
     summaryFood: '食物',
+    summaryNestHealth: '巢穴耐久',
     showMenu: '顯示選單',
     hideMenu: '隱藏選單',
   },
@@ -74,6 +76,7 @@ const TRANSLATIONS: Record<
     resetConfirm: 'Reset progress now? This cannot be undone.',
     summaryColony: 'Colony',
     summaryFood: 'Food',
+    summaryNestHealth: 'Nest Health',
     showMenu: 'Show Menu',
     hideMenu: 'Hide Menu',
   },
@@ -192,6 +195,7 @@ export default function App() {
     useGameStore.getState().hydrateFromPersistence({
       colonySize: 12,
       foodAmount: 0,
+      nestHealth: 100,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,
     });
     setIsSettingsOpen(false);
@@ -226,6 +230,7 @@ export default function App() {
           language={language}
           summaryColonyLabel={text.summaryColony}
           summaryFoodLabel={text.summaryFood}
+          summaryNestHealthLabel={text.summaryNestHealth}
           showMenuLabel={text.showMenu}
           hideMenuLabel={text.hideMenu}
         />

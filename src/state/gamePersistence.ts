@@ -5,8 +5,13 @@ export type GameLanguage = 'zh-TW' | 'en';
 export interface PersistedGameState {
   colonySize: number;
   foodAmount: number;
+  nestHealth: number;
   upgradeLevels: UpgradeState;
 }
+
+type PersistedGameStateCandidate = Omit<PersistedGameState, 'nestHealth'> & {
+  nestHealth?: number;
+};
 
 interface LocalSavePayload {
   version: 1;
@@ -17,10 +22,11 @@ interface LocalSavePayload {
 const LOCAL_SAVE_KEY = 'ant-colony-idle-save-v1';
 const LANGUAGE_KEY = 'ant-colony-idle-language';
 
-function sanitizeState(state: PersistedGameState): PersistedGameState {
+function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   return {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
     foodAmount: Math.max(0, Math.floor(state.foodAmount)),
+    nestHealth: Math.max(0, Math.floor(state.nestHealth ?? 100)),
     upgradeLevels: {
       queenSpawnRate: Math.max(0, Math.floor(state.upgradeLevels.queenSpawnRate)),
       carryCapacity: Math.max(0, Math.floor(state.upgradeLevels.carryCapacity)),
@@ -32,7 +38,7 @@ function sanitizeState(state: PersistedGameState): PersistedGameState {
   };
 }
 
-function isPersistedGameState(value: unknown): value is PersistedGameState {
+function isPersistedGameState(value: unknown): value is PersistedGameStateCandidate {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -43,6 +49,7 @@ function isPersistedGameState(value: unknown): value is PersistedGameState {
   return (
     typeof candidate.colonySize === 'number' &&
     typeof candidate.foodAmount === 'number' &&
+    (typeof candidate.nestHealth === 'number' || typeof candidate.nestHealth === 'undefined') &&
     upgradeLevels !== undefined &&
     typeof upgradeLevels.queenSpawnRate === 'number' &&
     typeof upgradeLevels.carryCapacity === 'number' &&

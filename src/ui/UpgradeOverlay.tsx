@@ -20,6 +20,7 @@ import {
 } from '../game/upgradeBalances';
 
 const DRAG_EDGE_MARGIN = 16;
+const ATTACK_ALERT_DURATION_MS = 2400;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -183,6 +184,7 @@ interface UpgradeOverlayProps {
   language: GameLanguage;
   summaryColonyLabel: string;
   summaryFoodLabel: string;
+  summaryNestHealthLabel: string;
   showMenuLabel: string;
   hideMenuLabel: string;
 }
@@ -191,10 +193,12 @@ export function UpgradeOverlay({
   language,
   summaryColonyLabel,
   summaryFoodLabel,
+  summaryNestHealthLabel,
   showMenuLabel,
   hideMenuLabel,
 }: UpgradeOverlayProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const panelRef = useRef<HTMLElement | null>(null);
   const panelPositionRef = useRef({ x: 0, y: 0 });
   const dragFrameRef = useRef<number | null>(null);
@@ -210,9 +214,27 @@ export function UpgradeOverlay({
   } | null>(null);
   const colonySize = useGameStore((state) => state.colonySize);
   const foodAmount = useGameStore((state) => state.foodAmount);
+  const nestHealth = useGameStore((state) => state.nestHealth);
+  const lastNestHitAt = useGameStore((state) => state.lastNestHitAt);
   const upgradeLevels = useGameStore((state) => state.upgradeLevels);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
   const isZh = language === 'zh-TW';
+  const attackAlertLabel = isZh ? '敵襲警報' : 'Under Attack';
+  const isUnderAttack = lastNestHitAt > 0 && now - lastNestHitAt < ATTACK_ALERT_DURATION_MS;
+
+  useEffect(() => {
+    if (!isUnderAttack) {
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 120);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [isUnderAttack]);
 
   const clampPanelPosition = (position: { x: number; y: number }, panelWidth: number, panelHeight: number) => {
     const minX = DRAG_EDGE_MARGIN;
@@ -363,6 +385,11 @@ export function UpgradeOverlay({
     >
       <div className="upgrade-shell">
         <section className="panel summary-panel" onPointerDown={startDrag} role="presentation">
+          {isUnderAttack ? (
+            <span className="summary-panel__alert" role="status" aria-live="polite">
+              {attackAlertLabel}
+            </span>
+          ) : null}
           <div>
             <p className="panel-label">{summaryColonyLabel}</p>
             <strong className="panel-value">{colonySize} ants</strong>
@@ -370,6 +397,10 @@ export function UpgradeOverlay({
           <div>
             <p className="panel-label">{summaryFoodLabel}</p>
             <strong className="panel-value">{foodAmount}</strong>
+          </div>
+          <div>
+            <p className="panel-label">{summaryNestHealthLabel}</p>
+            <strong className="panel-value">{Math.max(0, Math.floor(nestHealth))}%</strong>
           </div>
           <button
             type="button"
