@@ -18,6 +18,7 @@ const EMPTY_UPGRADE_LEVELS = {
   queenSpawnRate: 0,
   carryCapacity: 0,
   antSpeed: 0,
+  nestRecovery: 0,
   foodCapacity: 0,
   forageRadius: 0,
   populationCapacity: 0,
@@ -209,7 +210,7 @@ export default function App() {
     clearPersistedGameState();
     useGameStore.getState().hydrateFromPersistence({
       colonySize: 12,
-      foodAmount: 100,
+      foodAmount: 500,
       nestHealth: 100,
       nextEnemyWaveInSeconds: 0,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,

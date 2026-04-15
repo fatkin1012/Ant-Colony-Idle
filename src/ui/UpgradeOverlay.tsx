@@ -12,6 +12,7 @@ import {
   MAX_ANT_FORAGE_RADIUS_FACTOR,
   MAX_ANT_SPEED_MULTIPLIER,
   MAX_FOOD_ON_FIELD,
+  NEST_RECOVERY_PER_MINUTE_PER_LEVEL,
   MAX_SPAWN_REDUCTION,
   MAX_UPGRADE_LEVEL,
   BASE_POPULATION_CAPACITY,
@@ -47,9 +48,62 @@ function formatWaveCountdown(seconds: number) {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
+type SummaryIconKind = 'colony' | 'food' | 'health' | 'wave';
+
+function SummaryIcon({ kind, label }: { kind: SummaryIconKind; label: string }) {
+  if (kind === 'colony') {
+    return (
+      <span className="summary-stat__icon" role="img" aria-label={label} title={label}>
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 21V19C16 17.3431 14.6569 16 13 16H6C4.34315 16 3 17.3431 3 19V21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M9.5 13C11.433 13 13 11.433 13 9.5C13 7.567 11.433 6 9.5 6C7.567 6 6 7.567 6 9.5C6 11.433 7.567 13 9.5 13Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M21 21V19C21 17.8954 20.1046 17 19 17H17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M18 13.3C18.8807 12.9899 19.5 12.1503 19.5 11.1667C19.5 9.91999 18.5467 8.88333 17.3333 8.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+    );
+  }
+
+  if (kind === 'food') {
+    return (
+      <span className="summary-stat__icon" role="img" aria-label={label} title={label}>
+        <span className="summary-stat__emoji" aria-hidden="true">
+          🍗
+        </span>
+      </span>
+    );
+  }
+
+  if (kind === 'health') {
+    return (
+      <span className="summary-stat__icon summary-stat__icon--health" role="img" aria-label={label} title={label}>
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 20.8L10.7 19.6C6.2 15.6 3.2 12.9 3.2 9.5C3.2 6.8 5.3 4.8 8 4.8C9.5 4.8 11 5.5 12 6.7C13 5.5 14.5 4.8 16 4.8C18.7 4.8 20.8 6.8 20.8 9.5C20.8 12.9 17.8 15.6 13.3 19.6L12 20.8Z" fill="currentColor"/>
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <span className="summary-stat__icon" role="img" aria-label={label} title={label}>
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 8V13L15 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </span>
+  );
+}
+
 function formatEffect(
   language: GameLanguage,
-  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
+  upgradeKey:
+    | 'queenSpawnRate'
+    | 'carryCapacity'
+    | 'antSpeed'
+    | 'nestRecovery'
+    | 'foodCapacity'
+    | 'forageRadius'
+    | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -74,6 +128,12 @@ function formatEffect(
       : `Next level: move speed +${(ANT_SPEED_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`;
   }
 
+  if (upgradeKey === 'nestRecovery') {
+    return isZh
+      ? `下一級：巢穴每分鐘回血 +${NEST_RECOVERY_PER_MINUTE_PER_LEVEL}`
+      : `Next level: nest recovery +${NEST_RECOVERY_PER_MINUTE_PER_LEVEL} HP/min`;
+  }
+
   if (upgradeKey === 'foodCapacity') {
     return isZh
       ? `下一級：場上食物上限 +${FOOD_CAPACITY_PER_LEVEL}`
@@ -95,7 +155,14 @@ function formatEffect(
 
 function formatCurrentValue(
   language: GameLanguage,
-  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
+  upgradeKey:
+    | 'queenSpawnRate'
+    | 'carryCapacity'
+    | 'antSpeed'
+    | 'nestRecovery'
+    | 'foodCapacity'
+    | 'forageRadius'
+    | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -116,6 +183,11 @@ function formatCurrentValue(
   if (upgradeKey === 'antSpeed') {
     const speedMultiplier = Math.min(MAX_ANT_SPEED_MULTIPLIER, 1 + level * ANT_SPEED_MULTIPLIER_PER_LEVEL);
     return isZh ? `目前：移動 x${speedMultiplier.toFixed(2)}` : `Current: x${speedMultiplier.toFixed(2)} movement`;
+  }
+
+  if (upgradeKey === 'nestRecovery') {
+    const hpPerMinute = Math.max(0, level) * NEST_RECOVERY_PER_MINUTE_PER_LEVEL;
+    return isZh ? `目前：每分鐘回血 ${hpPerMinute}` : `Current: ${hpPerMinute} HP/min`;
   }
 
   if (upgradeKey === 'foodCapacity') {
@@ -144,7 +216,7 @@ function formatCurrentValue(
 const UPGRADE_CARD_TEXT: Record<
   GameLanguage,
   Record<
-    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
+    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
     { label: string; title: string }
   >
 > = {
@@ -152,6 +224,7 @@ const UPGRADE_CARD_TEXT: Record<
     queenSpawnRate: { label: '蟻后生產', title: '更快孵化螞蟻' },
     carryCapacity: { label: '搬運容量', title: '每趟搬更多食物' },
     antSpeed: { label: '螞蟻速度', title: '探索與搬運更快' },
+    nestRecovery: { label: '巢穴回復', title: '每分鐘回復巢穴耐久' },
     foodCapacity: { label: '食物容量', title: '地面可存在更多食物' },
     forageRadius: { label: '覓食範圍', title: '更遠距離偵測食物' },
     populationCapacity: { label: '人口容量', title: '提高工蟻與兵蟻總人口上限' },
@@ -160,6 +233,7 @@ const UPGRADE_CARD_TEXT: Record<
     queenSpawnRate: { label: 'Queen Spawn Rate', title: 'Faster Ant Production' },
     carryCapacity: { label: 'Carry Capacity', title: 'More Food Per Trip' },
     antSpeed: { label: 'Ant Speed', title: 'Quicker Search Runs' },
+    nestRecovery: { label: 'Nest Recovery', title: 'Restore Nest Health Over Time' },
     foodCapacity: { label: 'Food Capacity', title: 'More Food On The Ground' },
     forageRadius: { label: 'Forage Radius', title: 'Stronger Food Detection' },
     populationCapacity: { label: 'Population Capacity', title: 'Increase Total Worker + Soldier Cap' },
@@ -181,6 +255,11 @@ const UPGRADE_CARDS = [
     key: 'antSpeed' as const,
     label: 'Ant Speed',
     title: 'Quicker Search Runs',
+  },
+  {
+    key: 'nestRecovery' as const,
+    label: 'Nest Recovery',
+    title: 'Restore Nest Health Over Time',
   },
   {
     key: 'foodCapacity' as const,
@@ -418,20 +497,20 @@ export function UpgradeOverlay({
               {attackAlertLabel}
             </span>
           ) : null}
-          <div>
-            <p className="panel-label">{summaryColonyLabel}</p>
+          <div className="summary-stat" role="group" aria-label={summaryColonyLabel}>
+            <SummaryIcon kind="colony" label={summaryColonyLabel} />
             <strong className="panel-value">{colonySize} / {populationLimit}</strong>
           </div>
-          <div>
-            <p className="panel-label">{summaryFoodLabel}</p>
+          <div className="summary-stat" role="group" aria-label={summaryFoodLabel}>
+            <SummaryIcon kind="food" label={summaryFoodLabel} />
             <strong className="panel-value">{foodAmount}</strong>
           </div>
-          <div>
-            <p className="panel-label">{summaryNestHealthLabel}</p>
+          <div className="summary-stat" role="group" aria-label={summaryNestHealthLabel}>
+            <SummaryIcon kind="health" label={summaryNestHealthLabel} />
             <strong className="panel-value">{Math.max(0, Math.floor(nestHealth))}%</strong>
           </div>
-          <div>
-            <p className="panel-label">{summaryNextWaveLabel}</p>
+          <div className="summary-stat" role="group" aria-label={summaryNextWaveLabel}>
+            <SummaryIcon kind="wave" label={summaryNextWaveLabel} />
             <strong className="panel-value panel-value--timer">{formatWaveCountdown(nextEnemyWaveInSeconds)}</strong>
           </div>
           <button
@@ -468,7 +547,7 @@ export function UpgradeOverlay({
               </button>
             </div>
 
-            <div hidden={activeTab !== 'upgrades'}>
+            <div hidden={activeTab !== 'upgrades'} role="tabpanel">
               {UPGRADE_CARDS.map((upgradeCard) => {
                 const level = upgradeLevels[upgradeCard.key];
                 const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
@@ -506,7 +585,9 @@ export function UpgradeOverlay({
               })}
             </div>
 
-            <BattlePlannerPanel language={language} embedded hidden={activeTab !== 'battle'} />
+            <div hidden={activeTab !== 'battle'} role="tabpanel">
+              <BattlePlannerPanel language={language} embedded />
+            </div>
           </div>
         ) : null}
       </div>

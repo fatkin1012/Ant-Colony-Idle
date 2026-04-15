@@ -21,6 +21,7 @@ import {
   MAX_FOOD_ON_FIELD,
   MAX_SPAWN_REDUCTION,
   MIN_SPAWN_INTERVAL_SECONDS,
+  NEST_RECOVERY_PER_MINUTE_PER_LEVEL,
   NEST_DEFENSE_DAMAGE_PER_SECOND,
   NEST_DEFENSE_RANGE,
   PLAYER_NEST_MAX_HEALTH,
@@ -136,6 +137,7 @@ interface GameEngineOptions {
     queenSpawnRate: number;
     carryCapacity: number;
     antSpeed: number;
+    nestRecovery: number;
     foodCapacity: number;
     forageRadius: number;
     populationCapacity: number;
@@ -185,6 +187,7 @@ export class GameEngine {
     queenSpawnRate: number;
     carryCapacity: number;
     antSpeed: number;
+    nestRecovery: number;
     foodCapacity: number;
     forageRadius: number;
     populationCapacity: number;
@@ -307,6 +310,7 @@ export class GameEngine {
     this.entityManager.update(deltaTime, world);
     this.resolveFoodPickups(world);
     this.resolveEnemyCombat(deltaTime, world);
+    this.applyNestRecovery(deltaTime);
     this.updateAttackEffects(deltaTime);
     this.pruneFood();
     this.pruneEnemyNests();
@@ -493,6 +497,7 @@ export class GameEngine {
       queenSpawnRate: 0,
       carryCapacity: 0,
       antSpeed: 0,
+      nestRecovery: 0,
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,
@@ -649,6 +654,7 @@ export class GameEngine {
       queenSpawnRate: 0,
       carryCapacity: 0,
       antSpeed: 0,
+      nestRecovery: 0,
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,
@@ -1140,6 +1146,30 @@ export class GameEngine {
     this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
   }
 
+  private applyNestRecovery(deltaTime: number) {
+    if (deltaTime <= 0 || this.nestHealth <= 0 || this.nestHealth >= PLAYER_NEST_MAX_HEALTH) {
+      return;
+    }
+
+    const nestRecoveryLevel = Math.max(0, this.getUpgradeLevels?.().nestRecovery ?? 0);
+
+    if (nestRecoveryLevel <= 0) {
+      return;
+    }
+
+    const healPerSecond = (nestRecoveryLevel * NEST_RECOVERY_PER_MINUTE_PER_LEVEL) / 60;
+    if (healPerSecond <= 0) {
+      return;
+    }
+
+    const previousHealth = this.nestHealth;
+    this.nestHealth = Math.min(PLAYER_NEST_MAX_HEALTH, this.nestHealth + healPerSecond * deltaTime);
+
+    if (Math.floor(previousHealth) !== Math.floor(this.nestHealth) || this.nestHealth === PLAYER_NEST_MAX_HEALTH) {
+      this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
+    }
+  }
+
   private spawnSpitterAttackEffect(fromX: number, fromY: number, toX: number, toY: number) {
     this.spitterAttackEffects.push({
       fromX,
@@ -1499,6 +1529,7 @@ export class GameEngine {
       queenSpawnRate: 0,
       carryCapacity: 0,
       antSpeed: 0,
+      nestRecovery: 0,
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,

@@ -28,6 +28,8 @@ const LOCAL_SAVE_KEY = 'ant-colony-idle-save-v1';
 const LANGUAGE_KEY = 'ant-colony-idle-language';
 
 function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
+  const rawNestRecovery = (state.upgradeLevels as unknown as Record<string, unknown>).nestRecovery;
+  const nestRecovery = typeof rawNestRecovery === 'number' ? rawNestRecovery : 0;
   const rawPopulationCapacity = (state.upgradeLevels as unknown as Record<string, unknown>).populationCapacity;
   const populationCapacity = typeof rawPopulationCapacity === 'number' ? rawPopulationCapacity : 0;
 
@@ -40,6 +42,7 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       queenSpawnRate: Math.max(0, Math.floor(state.upgradeLevels.queenSpawnRate)),
       carryCapacity: Math.max(0, Math.floor(state.upgradeLevels.carryCapacity)),
       antSpeed: Math.max(0, Math.floor(state.upgradeLevels.antSpeed)),
+      nestRecovery: Math.max(0, Math.floor(nestRecovery)),
       foodCapacity: Math.max(0, Math.floor(state.upgradeLevels.foodCapacity)),
       forageRadius: Math.max(0, Math.floor(state.upgradeLevels.forageRadius)),
       populationCapacity: Math.max(0, Math.floor(populationCapacity)),
@@ -85,6 +88,7 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     typeof upgradeLevels.queenSpawnRate === 'number' &&
     typeof upgradeLevels.carryCapacity === 'number' &&
     typeof upgradeLevels.antSpeed === 'number' &&
+    (typeof upgradeLevels.nestRecovery === 'number' || typeof upgradeLevels.nestRecovery === 'undefined') &&
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
     (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined') &&

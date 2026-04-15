@@ -8,6 +8,7 @@ export type UpgradeKey =
   | 'queenSpawnRate'
   | 'carryCapacity'
   | 'antSpeed'
+  | 'nestRecovery'
   | 'foodCapacity'
   | 'forageRadius'
   | 'populationCapacity';
@@ -16,6 +17,7 @@ export interface UpgradeState {
   queenSpawnRate: number;
   carryCapacity: number;
   antSpeed: number;
+  nestRecovery: number;
   foodCapacity: number;
   forageRadius: number;
   populationCapacity: number;
@@ -57,6 +59,7 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   queenSpawnRate: 25,
   carryCapacity: 25,
   antSpeed: 25,
+  nestRecovery: 28,
   foodCapacity: 30,
   forageRadius: 35,
   populationCapacity: 55,
@@ -74,7 +77,7 @@ function clampUpgradeLevel(level: number) {
 
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
-  foodAmount: 100,
+  foodAmount: 500,
   nestHealth: 100,
   nextEnemyWaveInSeconds: 0,
   engineState: null,
@@ -84,6 +87,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     queenSpawnRate: 0,
     carryCapacity: 0,
     antSpeed: 0,
+    nestRecovery: 0,
     foodCapacity: 0,
     forageRadius: 0,
     populationCapacity: 0,
@@ -99,6 +103,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
         antSpeed: clampUpgradeLevel(state.upgradeLevels.antSpeed),
+        nestRecovery: clampUpgradeLevel(state.upgradeLevels.nestRecovery),
         foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
         forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
         populationCapacity: clampUpgradeLevel(state.upgradeLevels.populationCapacity),

@@ -96,10 +96,9 @@ const TEXTS: Record<
 interface BattlePlannerPanelProps {
   language: GameLanguage;
   embedded?: boolean;
-  hidden?: boolean;
 }
 
-export function BattlePlannerPanel({ language, embedded = false, hidden = false }: BattlePlannerPanelProps) {
+export function BattlePlannerPanel({ language, embedded = false }: BattlePlannerPanelProps) {
   const foodAmount = useGameStore((state) => state.foodAmount);
   const colonySize = useGameStore((state) => state.colonySize);
   const spendFood = useGameStore((state) => state.spendFood);
@@ -203,7 +202,6 @@ export function BattlePlannerPanel({ language, embedded = false, hidden = false 
     <aside
       className={`battle-planner ${embedded ? 'battle-planner--embedded' : 'panel'}`}
       aria-label={texts.title}
-      hidden={hidden}
     >
       <header className="battle-planner__header">
         <div>
