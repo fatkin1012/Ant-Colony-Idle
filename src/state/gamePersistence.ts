@@ -1,4 +1,5 @@
 import type { UpgradeState } from './gameStore';
+import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 
 export type GameLanguage = 'zh-TW' | 'en';
 
@@ -6,11 +7,15 @@ export interface PersistedGameState {
   colonySize: number;
   foodAmount: number;
   nestHealth: number;
+  nextEnemyWaveInSeconds: number;
   upgradeLevels: UpgradeState;
+  engineState?: GameEngineSnapshot | null;
 }
 
-type PersistedGameStateCandidate = Omit<PersistedGameState, 'nestHealth'> & {
+type PersistedGameStateCandidate = Omit<PersistedGameState, 'nestHealth' | 'nextEnemyWaveInSeconds' | 'engineState'> & {
   nestHealth?: number;
+  nextEnemyWaveInSeconds?: number;
+  engineState?: unknown;
 };
 
 interface LocalSavePayload {
@@ -30,6 +35,7 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
     foodAmount: Math.max(0, Math.floor(state.foodAmount)),
     nestHealth: Math.max(0, Math.floor(state.nestHealth ?? 100)),
+    nextEnemyWaveInSeconds: Math.max(0, Math.floor((state as PersistedGameStateCandidate & { nextEnemyWaveInSeconds?: number }).nextEnemyWaveInSeconds ?? 0)),
     upgradeLevels: {
       queenSpawnRate: Math.max(0, Math.floor(state.upgradeLevels.queenSpawnRate)),
       carryCapacity: Math.max(0, Math.floor(state.upgradeLevels.carryCapacity)),
@@ -38,7 +44,28 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       forageRadius: Math.max(0, Math.floor(state.upgradeLevels.forageRadius)),
       populationCapacity: Math.max(0, Math.floor(populationCapacity)),
     },
+    engineState: isValidEngineState(state.engineState) ? state.engineState : null,
   };
+}
+
+function isValidEngineState(value: unknown): value is GameEngineSnapshot {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.time === 'number' &&
+    typeof candidate.nextFoodId === 'number' &&
+    typeof candidate.nextAntId === 'number' &&
+    typeof candidate.nextEnemyAntId === 'number' &&
+    typeof candidate.nextEnemyNestId === 'number' &&
+    typeof candidate.nextEnemyCaveSpawnAtSeconds === 'number' &&
+    Array.isArray(candidate.playerAnts) &&
+    Array.isArray(candidate.playerSoldiers) &&
+    Array.isArray(candidate.enemyNests)
+  );
 }
 
 function isPersistedGameState(value: unknown): value is PersistedGameStateCandidate {
@@ -53,13 +80,15 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     typeof candidate.colonySize === 'number' &&
     typeof candidate.foodAmount === 'number' &&
     (typeof candidate.nestHealth === 'number' || typeof candidate.nestHealth === 'undefined') &&
+    (typeof candidate.nextEnemyWaveInSeconds === 'number' || typeof candidate.nextEnemyWaveInSeconds === 'undefined') &&
     upgradeLevels !== undefined &&
     typeof upgradeLevels.queenSpawnRate === 'number' &&
     typeof upgradeLevels.carryCapacity === 'number' &&
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
-    (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined')
+    (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined') &&
+    (typeof candidate.engineState === 'undefined' || isValidEngineState(candidate.engineState))
   );
 }
 

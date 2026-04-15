@@ -19,6 +19,23 @@ export interface EnemyNestConfig {
   x: number;
   y: number;
   level?: number;
+  hp?: number;
+  xp?: number;
+  activeSpawns?: number;
+  spawnTimer?: number;
+  regenTimer?: number;
+}
+
+export interface EnemyNestSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  level: number;
+  hp: number;
+  xp: number;
+  activeSpawns: number;
+  spawnTimer: number;
+  regenTimer: number;
 }
 
 export interface EnemySpawnStats {
@@ -48,8 +65,11 @@ export class EnemyNest {
     this.y = config.y;
     this.level = Math.max(1, Math.floor(config.level ?? 1));
     this.maxHp = ENEMY_NEST_BASE_HEALTH + (this.level - 1) * ENEMY_NEST_HEALTH_PER_LEVEL;
-    this.hp = this.maxHp;
-    this.spawnTimer = this.getSpawnCooldownSeconds();
+    this.hp = Math.max(1, Math.min(this.maxHp, Math.floor(config.hp ?? this.maxHp)));
+    this.xp = Math.max(0, Math.floor(config.xp ?? 0));
+    this.activeSpawns = Math.max(0, Math.floor(config.activeSpawns ?? 0));
+    this.spawnTimer = Math.max(0, config.spawnTimer ?? this.getSpawnCooldownSeconds());
+    this.regenTimer = Math.max(0, config.regenTimer ?? ENEMY_CAVE_REGEN_INTERVAL_SECONDS);
   }
 
   get position() {
@@ -108,6 +128,20 @@ export class EnemyNest {
 
   notifySpawnDestroyed() {
     this.activeSpawns = Math.max(0, this.activeSpawns - 1);
+  }
+
+  getSnapshot(): EnemyNestSnapshot {
+    return {
+      id: this.id,
+      x: this.x,
+      y: this.y,
+      level: this.level,
+      hp: this.hp,
+      xp: this.xp,
+      activeSpawns: this.activeSpawns,
+      spawnTimer: this.spawnTimer,
+      regenTimer: this.regenTimer,
+    };
   }
 
   getSpawnStats(waveIndex = 1): EnemySpawnStats {

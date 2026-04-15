@@ -14,6 +14,7 @@ export function GameCanvas() {
     }
 
     const engine = new GameEngine(canvas, {
+      initialState: useGameStore.getState().engineState,
       onFoodCollected: (amount) => {
         useGameStore.getState().earnFood(amount);
       },
@@ -35,6 +36,9 @@ export function GameCanvas() {
       },
       onNextEnemyWaveTimeChanged: (seconds) => {
         useGameStore.getState().setNextEnemyWaveInSeconds(seconds);
+      },
+      onStateChanged: (state) => {
+        useGameStore.getState().setEngineState(state);
       },
       getNestHealth: () => useGameStore.getState().nestHealth,
       getPopulationUsage: () => useGameStore.getState().colonySize,

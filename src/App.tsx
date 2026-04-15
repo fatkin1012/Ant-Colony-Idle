@@ -94,6 +94,7 @@ const TRANSLATIONS: Record<
 export default function App() {
   const [language, setLanguage] = useState<GameLanguage>(() => loadGameLanguage());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPersistenceReady, setIsPersistenceReady] = useState(false);
 
   const text = TRANSLATIONS[language];
 
@@ -176,12 +177,17 @@ export default function App() {
       window.addEventListener('pagehide', flushOnHide);
       window.addEventListener('beforeunload', flushOnHide);
       document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      if (!disposed) {
+        setIsPersistenceReady(true);
+      }
     };
 
     void initializePersistence();
 
     return () => {
       disposed = true;
+      setIsPersistenceReady(false);
       clearSaveTimer();
       unsubscribeStore?.();
       window.removeEventListener('pagehide', flushOnHide);
@@ -205,7 +211,9 @@ export default function App() {
       colonySize: 12,
       foodAmount: 100,
       nestHealth: 100,
+      nextEnemyWaveInSeconds: 0,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,
+      engineState: null,
     });
     setIsSettingsOpen(false);
   };
@@ -234,7 +242,7 @@ export default function App() {
         </div>
       </header>
       <main className="game-stage">
-        <GameCanvas />
+        {isPersistenceReady ? <GameCanvas /> : null}
         <UpgradeOverlay
           language={language}
           summaryColonyLabel={text.summaryColony}

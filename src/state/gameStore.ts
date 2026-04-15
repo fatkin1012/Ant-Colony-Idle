@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { BASE_POPULATION_CAPACITY, MAX_UPGRADE_LEVEL, POPULATION_CAPACITY_PER_LEVEL } from '../game/upgradeBalances';
 import type { PersistedGameState } from './gamePersistence';
+import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
 export type UpgradeKey =
@@ -32,6 +33,7 @@ interface GameState {
   foodAmount: number;
   nestHealth: number;
   nextEnemyWaveInSeconds: number;
+  engineState: GameEngineSnapshot | null;
   lastNestHitAt: number;
   battleDeployments: BattleDeployment[];
   upgradeLevels: UpgradeState;
@@ -41,6 +43,7 @@ interface GameState {
   loseColonySize: (amount?: number) => void;
   setNestHealth: (health: number) => void;
   setNextEnemyWaveInSeconds: (seconds: number) => void;
+  setEngineState: (state: GameEngineSnapshot | null) => void;
   notifyNestHit: () => void;
   enqueueBattleDeployment: (deployment: Omit<BattleDeployment, 'id' | 'createdAt'>) => string;
   pullBattleDeployments: () => BattleDeployment[];
@@ -74,6 +77,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   foodAmount: 100,
   nestHealth: 100,
   nextEnemyWaveInSeconds: 0,
+  engineState: null,
   lastNestHitAt: 0,
   battleDeployments: [],
   upgradeLevels: {
@@ -89,6 +93,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       colonySize: Math.max(0, Math.floor(state.colonySize)),
       foodAmount: Math.max(0, Math.floor(state.foodAmount)),
       nestHealth: Math.max(0, Math.floor(state.nestHealth)),
+      nextEnemyWaveInSeconds: Math.max(0, Math.floor(state.nextEnemyWaveInSeconds ?? 0)),
+      engineState: state.engineState ?? null,
       upgradeLevels: {
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
@@ -130,6 +136,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setNextEnemyWaveInSeconds: (seconds) => {
     set({
       nextEnemyWaveInSeconds: Math.max(0, seconds),
+    });
+  },
+  setEngineState: (state) => {
+    set({
+      engineState: state,
     });
   },
   notifyNestHit: () => {
@@ -219,13 +230,15 @@ export const useGameStore = create<GameState>((set, get) => ({
 }));
 
 export function getPersistedGameSnapshot(
-  state: Pick<GameState, 'colonySize' | 'foodAmount' | 'nestHealth' | 'upgradeLevels'>,
+  state: Pick<GameState, 'colonySize' | 'foodAmount' | 'nestHealth' | 'nextEnemyWaveInSeconds' | 'upgradeLevels' | 'engineState'>,
 ): PersistedGameState {
   return {
     colonySize: state.colonySize,
     foodAmount: state.foodAmount,
     nestHealth: state.nestHealth,
+    nextEnemyWaveInSeconds: state.nextEnemyWaveInSeconds,
     upgradeLevels: state.upgradeLevels,
+    engineState: state.engineState,
   };
 }
 

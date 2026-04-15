@@ -45,6 +45,7 @@ const TEXTS: Record<
     deploySuccess: string;
     deployFailFood: string;
     deployFailPopulation: string;
+    delete: string;
     tip: string;
   }
 > = {
@@ -66,6 +67,7 @@ const TEXTS: Record<
     deploySuccess: '部署成功，正在生成兵蟻',
     deployFailFood: '食物不足',
     deployFailPopulation: '人口不足',
+    delete: '刪除',
     tip: '部署會同時檢查食物與總人口上限。',
   },
   en: {
@@ -86,6 +88,7 @@ const TEXTS: Record<
     deploySuccess: 'Deploy queued, units are spawning',
     deployFailFood: 'Not enough food',
     deployFailPopulation: 'Not enough population',
+    delete: 'Delete',
     tip: 'Deployment checks both food and total population cap.',
   },
 };
@@ -93,9 +96,10 @@ const TEXTS: Record<
 interface BattlePlannerPanelProps {
   language: GameLanguage;
   embedded?: boolean;
+  hidden?: boolean;
 }
 
-export function BattlePlannerPanel({ language, embedded = false }: BattlePlannerPanelProps) {
+export function BattlePlannerPanel({ language, embedded = false, hidden = false }: BattlePlannerPanelProps) {
   const foodAmount = useGameStore((state) => state.foodAmount);
   const colonySize = useGameStore((state) => state.colonySize);
   const spendFood = useGameStore((state) => state.spendFood);
@@ -181,6 +185,12 @@ export function BattlePlannerPanel({ language, embedded = false }: BattlePlanner
     setMessage(texts.deploySuccess);
   };
 
+  const handleDeleteSquad = (squadId: string) => {
+    director.disbandSquad(squadId);
+    setQueuedSquads((prev) => prev.filter((item) => item.id !== squadId));
+    setMessage('');
+  };
+
   const handleReset = () => {
     setDraft({
       [AntRole.GUARDIAN]: 0,
@@ -190,7 +200,11 @@ export function BattlePlannerPanel({ language, embedded = false }: BattlePlanner
   };
 
   return (
-    <aside className={`battle-planner ${embedded ? 'battle-planner--embedded' : 'panel'}`} aria-label={texts.title}>
+    <aside
+      className={`battle-planner ${embedded ? 'battle-planner--embedded' : 'panel'}`}
+      aria-label={texts.title}
+      hidden={hidden}
+    >
       <header className="battle-planner__header">
         <div>
           <p className="panel-label">{texts.subtitle}</p>
@@ -289,6 +303,11 @@ export function BattlePlannerPanel({ language, embedded = false }: BattlePlanner
               </div>
               <button type="button" className="battle-action" onClick={() => handleDeploySquad(squad)}>
                 {texts.deploy}
+              </button>
+              <button type="button" className="battle-action battle-action--danger battle-action--icon" onClick={() => handleDeleteSquad(squad.id)} aria-label={texts.delete}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 6H5H21M8 6V4C8 3.44772 8.44772 3 9 3H15C15.5523 3 16 3.44772 16 4V6M16 6V20C16 20.5523 15.5523 21 15 21H9C8.44772 21 8 20.5523 8 20V6H16ZM10 10V18M14 10V18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             </article>
           );

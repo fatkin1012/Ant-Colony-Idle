@@ -53,33 +53,41 @@ function formatEffect(
   level: number,
 ) {
   const isZh = language === 'zh-TW';
+  const nextLevel = Math.max(0, level + 1);
 
   if (upgradeKey === 'queenSpawnRate') {
+    const nextReduction = Math.min(nextLevel * SPAWN_REDUCTION_PER_LEVEL * 100, MAX_SPAWN_REDUCTION * 100);
+    const currentReduction = Math.min(level * SPAWN_REDUCTION_PER_LEVEL * 100, MAX_SPAWN_REDUCTION * 100);
+    const delta = Math.max(0, nextReduction - currentReduction);
     return isZh
-      ? `螞蟻生成間隔 -${Math.min(level * 2.5, 75).toFixed(1)}%`
-      : `Spawn interval -${Math.min(level * 2.5, 75).toFixed(1)}%`;
+      ? `下一級：螞蟻生成間隔 -${delta.toFixed(1)}%`
+      : `Next level: spawn interval -${delta.toFixed(1)}%`;
   }
 
   if (upgradeKey === 'carryCapacity') {
-    return isZh ? `每趟可多搬 +${level} 食物` : `Carry +${level} food per trip`;
+    return isZh ? '下一級：每趟可多搬 +1 食物' : 'Next level: carry +1 food per trip';
   }
 
   if (upgradeKey === 'antSpeed') {
     return isZh
-      ? `移動速度 +${Math.min(level * (ANT_SPEED_MULTIPLIER_PER_LEVEL * 100), (MAX_ANT_SPEED_MULTIPLIER - 1) * 100).toFixed(1)}%`
-      : `Move speed +${Math.min(level * (ANT_SPEED_MULTIPLIER_PER_LEVEL * 100), (MAX_ANT_SPEED_MULTIPLIER - 1) * 100).toFixed(1)}%`;
+      ? `下一級：移動速度 +${(ANT_SPEED_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`
+      : `Next level: move speed +${(ANT_SPEED_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`;
   }
 
   if (upgradeKey === 'foodCapacity') {
-    return isZh ? `場上食物上限 +${level * FOOD_CAPACITY_PER_LEVEL}` : `Field food cap +${level * FOOD_CAPACITY_PER_LEVEL}`;
+    return isZh
+      ? `下一級：場上食物上限 +${FOOD_CAPACITY_PER_LEVEL}`
+      : `Next level: field food cap +${FOOD_CAPACITY_PER_LEVEL}`;
   }
 
   if (upgradeKey === 'forageRadius') {
-    return isZh ? `食物感知半徑 +${Math.min(level * 2, 60)}%` : `Food sensing radius +${Math.min(level * 2, 60)}%`;
+    return isZh ? '下一級：食物感知半徑 +2%' : 'Next level: food sensing radius +2%';
   }
 
   if (upgradeKey === 'populationCapacity') {
-    return isZh ? `人口上限 +${level * POPULATION_CAPACITY_PER_LEVEL}` : `Population cap +${level * POPULATION_CAPACITY_PER_LEVEL}`;
+    return isZh
+      ? `下一級：人口上限 +${POPULATION_CAPACITY_PER_LEVEL}`
+      : `Next level: population cap +${POPULATION_CAPACITY_PER_LEVEL}`;
   }
 
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
@@ -460,43 +468,45 @@ export function UpgradeOverlay({
               </button>
             </div>
 
-            {activeTab === 'upgrades'
-              ? UPGRADE_CARDS.map((upgradeCard) => {
-                  const level = upgradeLevels[upgradeCard.key];
-                  const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
-                  const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
-                  const canAfford = foodAmount >= cost;
-                  const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
+            <div hidden={activeTab !== 'upgrades'}>
+              {UPGRADE_CARDS.map((upgradeCard) => {
+                const level = upgradeLevels[upgradeCard.key];
+                const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
+                const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
+                const canAfford = foodAmount >= cost;
+                const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
 
-                  return (
-                    <section className="panel upgrade-card" key={upgradeCard.key}>
-                      <div className="upgrade-card__header">
-                        <div>
-                          <p className="panel-label">{cardText.label}</p>
-                          <h2>{cardText.title}</h2>
-                        </div>
-                        <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
+                return (
+                  <section className="panel upgrade-card" key={upgradeCard.key}>
+                    <div className="upgrade-card__header">
+                      <div>
+                        <p className="panel-label">{cardText.label}</p>
+                        <h2>{cardText.title}</h2>
                       </div>
-                      <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
-                      <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
-                      <button
-                        type="button"
-                        className="upgrade-button"
-                        onClick={() => purchaseUpgrade(upgradeCard.key)}
-                        disabled={!canAfford || isMaxLevel}
-                      >
-                        {isMaxLevel
-                          ? isZh
-                            ? '已達最高等級'
-                            : 'Max Level Reached'
-                          : isZh
-                            ? `花費 ${cost} 食物升級`
-                            : `Buy for ${cost} food`}
-                      </button>
-                    </section>
-                  );
-                })
-              : <BattlePlannerPanel language={language} embedded />}
+                      <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
+                    </div>
+                    <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
+                    <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
+                    <button
+                      type="button"
+                      className="upgrade-button"
+                      onClick={() => purchaseUpgrade(upgradeCard.key)}
+                      disabled={!canAfford || isMaxLevel}
+                    >
+                      {isMaxLevel
+                        ? isZh
+                          ? '已達最高等級'
+                          : 'Max Level Reached'
+                        : isZh
+                          ? `花費 ${cost} 食物升級`
+                          : `Buy for ${cost} food`}
+                    </button>
+                  </section>
+                );
+              })}
+            </div>
+
+            <BattlePlannerPanel language={language} embedded hidden={activeTab !== 'battle'} />
           </div>
         ) : null}
       </div>

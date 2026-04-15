@@ -1,6 +1,7 @@
 import { EntityManager } from './EntityManager';
 import type { GameWorld } from './types';
 import { Ant } from '../entities/Ant';
+import type { AntState } from '../entities/Ant';
 import { EnemyAnt, EnemyAntRole, EnemySquadTactic } from '../entities/EnemyAnt';
 import { EnemyNest } from '../entities/EnemyNest';
 import { Food } from '../entities/Food';
@@ -53,6 +54,21 @@ const ENEMY_NEST_BASE_DESTROY_REWARD_FOOD = 500;
 const ENEMY_NEST_DESTROY_REWARD_PER_LEVEL = 200;
 const SPITTER_ATTACK_EFFECT_LIFETIME_SECONDS = 0.2;
 
+export interface PlayerAntSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  state: AntState;
+}
+
+export interface PlayerSoldierSnapshot {
+  id: string;
+  role: AntRole;
+  mode: SquadMode;
+  x: number;
+  y: number;
+}
+
 interface SpitterAttackEffect {
   fromX: number;
   fromY: number;
@@ -68,12 +84,48 @@ interface EnemyWaveOrder {
   waveIndex: number;
 }
 
+export interface EnemyWaveOrderSnapshot {
+  role: EnemyAntRole;
+  tactic: EnemySquadTactic;
+  waveIndex: number;
+}
+
+export interface EnemyNestSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  level: number;
+  hp: number;
+  xp: number;
+  activeSpawns: number;
+  spawnTimer: number;
+  regenTimer: number;
+  waveTimer: number;
+  waveCounter: number;
+  waveQueue: EnemyWaveOrderSnapshot[];
+}
+
+export interface GameEngineSnapshot {
+  time: number;
+  nextFoodId: number;
+  nextAntId: number;
+  nextEnemyAntId: number;
+  nextEnemyNestId: number;
+  nextEnemyCaveSpawnAtSeconds: number;
+  nextEnemyWaveInSeconds: number;
+  playerAnts: PlayerAntSnapshot[];
+  playerSoldiers: PlayerSoldierSnapshot[];
+  enemyNests: EnemyNestSnapshot[];
+}
+
 interface GameEngineOptions {
   onFoodCollected?: (amount: number) => void;
   getFoodAmount?: () => number;
   onAntSpawned?: (amount: number) => void;
   onAntLost?: (amount: number) => void;
   onNextEnemyWaveTimeChanged?: (seconds: number) => void;
+  initialState?: GameEngineSnapshot | null;
+  onStateChanged?: (state: GameEngineSnapshot) => void;
   onPopulationUsageChanged?: (amount: number) => void;
   onNestHealthChanged?: (health: number, maxHealth: number) => void;
   onNestDamaged?: (damageAmount: number, nextHealth: number, maxHealth: number) => void;
@@ -122,6 +174,7 @@ export class GameEngine {
   private readonly onAntSpawned?: (amount: number) => void;
   private readonly onAntLost?: (amount: number) => void;
   private readonly onNextEnemyWaveTimeChanged?: (seconds: number) => void;
+  private readonly onStateChanged?: (state: GameEngineSnapshot) => void;
   private readonly onPopulationUsageChanged?: (amount: number) => void;
   private readonly onNestHealthChanged?: (health: number, maxHealth: number) => void;
   private readonly onNestDamaged?: (damageAmount: number, nextHealth: number, maxHealth: number) => void;
@@ -152,6 +205,7 @@ export class GameEngine {
     this.onAntSpawned = options.onAntSpawned;
     this.onAntLost = options.onAntLost;
     this.onNextEnemyWaveTimeChanged = options.onNextEnemyWaveTimeChanged;
+    this.onStateChanged = options.onStateChanged;
     this.onPopulationUsageChanged = options.onPopulationUsageChanged;
     this.onNestHealthChanged = options.onNestHealthChanged;
     this.onNestDamaged = options.onNestDamaged;
@@ -164,9 +218,17 @@ export class GameEngine {
     this.resizeObserver.observe(canvas);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.resize();
-    this.seedAnts();
     this.seedFood();
-    this.seedEnemyNests(this.createWorld());
+    const world = this.createWorld();
+
+    if (options.initialState) {
+      this.restoreFromSnapshot(options.initialState, world);
+    } else {
+      this.seedAnts();
+      this.seedEnemyNests(world);
+    }
+
+    this.emitStateChanged();
     this.syncPopulationUsage();
     this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
   }
@@ -250,10 +312,65 @@ export class GameEngine {
     this.pruneEnemyNests();
     this.ensureFoodPopulation(world);
     this.reportNextEnemyWaveTime();
+    this.emitStateChanged();
     this.syncPopulationUsage();
   }
 
-  private reportNextEnemyWaveTime() {
+  private emitStateChanged() {
+    this.onStateChanged?.(this.createSnapshot());
+  }
+
+  private createSnapshot(): GameEngineSnapshot {
+    const playerAnts: PlayerAntSnapshot[] = [];
+    const playerSoldiers: PlayerSoldierSnapshot[] = [];
+
+    for (const entity of this.entityManager.values()) {
+      if (entity instanceof Ant && entity.alive) {
+        playerAnts.push({
+          id: entity.id,
+          x: entity.position.x,
+          y: entity.position.y,
+          state: entity.state as AntState,
+        });
+      } else if (entity instanceof PlayerSoldier && entity.alive) {
+        playerSoldiers.push({
+          id: entity.id,
+          role: entity.role,
+          mode: entity.mode,
+          x: entity.position.x,
+          y: entity.position.y,
+        });
+      }
+    }
+
+    const enemyNests = this.enemyNests
+      .filter((enemyNest) => enemyNest.alive)
+      .map((enemyNest) => ({
+        ...enemyNest.getSnapshot(),
+        waveTimer: this.enemyWaveTimersSeconds.get(enemyNest.id) ?? this.getNextWaveCooldownSeconds(enemyNest.currentLevel),
+        waveCounter: this.enemyWaveCounters.get(enemyNest.id) ?? 0,
+        waveQueue: (this.enemyWaveQueues.get(enemyNest.id) ?? []).map((order) => ({
+          role: order.role,
+          tactic: order.tactic,
+          waveIndex: order.waveIndex,
+        })),
+      }));
+
+    return {
+      time: this.time,
+      nextFoodId: this.nextFoodId,
+      nextAntId: this.nextAntId,
+      nextEnemyAntId: this.nextEnemyAntId,
+      nextEnemyNestId: this.nextEnemyNestId,
+      nextEnemyCaveSpawnAtSeconds: this.nextEnemyCaveSpawnAtSeconds,
+      nextEnemyWaveInSeconds: this.getNextEnemyWaveTimeSeconds(),
+      playerAnts,
+      playerSoldiers,
+      enemyNests,
+    };
+  }
+
+  private getNextEnemyWaveTimeSeconds() {
     let nextSeconds = Math.max(0, this.nextEnemyCaveSpawnAtSeconds - this.time);
     let hasWaveTimer = false;
 
@@ -275,6 +392,80 @@ export class GameEngine {
 
       hasWaveTimer = true;
     }
+
+    return Math.round(nextSeconds * 10) / 10;
+  }
+
+  private restoreFromSnapshot(snapshot: GameEngineSnapshot, world: GameWorld) {
+    this.time = Math.max(0, snapshot.time);
+    this.nextFoodId = Math.max(0, snapshot.nextFoodId);
+    this.nextAntId = Math.max(0, snapshot.nextAntId);
+    this.nextEnemyAntId = Math.max(0, snapshot.nextEnemyAntId);
+    this.nextEnemyNestId = Math.max(0, snapshot.nextEnemyNestId);
+    this.nextEnemyCaveSpawnAtSeconds = Math.max(0, snapshot.nextEnemyCaveSpawnAtSeconds);
+
+    this.entityManager.clear();
+    this.enemyNests = [];
+    this.enemyWaveTimersSeconds.clear();
+    this.enemyWaveCounters.clear();
+    this.enemyWaveQueues.clear();
+
+    for (const ant of snapshot.playerAnts) {
+      this.entityManager.add(
+        new Ant({
+          id: ant.id,
+          x: ant.x,
+          y: ant.y,
+          state: ant.state,
+        }),
+      );
+    }
+
+    for (const soldier of snapshot.playerSoldiers) {
+      this.entityManager.add(
+        new PlayerSoldier({
+          id: soldier.id,
+          role: soldier.role,
+          mode: soldier.mode,
+          x: soldier.x,
+          y: soldier.y,
+        }),
+      );
+    }
+
+    for (const nestState of snapshot.enemyNests) {
+      const enemyNest = new EnemyNest({
+        id: nestState.id,
+        x: nestState.x,
+        y: nestState.y,
+        level: nestState.level,
+        hp: nestState.hp,
+        xp: nestState.xp,
+        activeSpawns: nestState.activeSpawns,
+        spawnTimer: nestState.spawnTimer,
+        regenTimer: nestState.regenTimer,
+      });
+
+      this.enemyNests.push(enemyNest);
+      this.enemyWaveTimersSeconds.set(enemyNest.id, nestState.waveTimer);
+      this.enemyWaveCounters.set(enemyNest.id, nestState.waveCounter);
+      this.enemyWaveQueues.set(
+        enemyNest.id,
+        (nestState.waveQueue ?? []).map((order) => ({
+          role: order.role,
+          tactic: order.tactic,
+          waveIndex: order.waveIndex,
+        })),
+      );
+    }
+
+    this.reportNextEnemyWaveTime();
+    this.onStateChanged?.(this.createSnapshot());
+    this.onPopulationUsageChanged?.(this.getPopulationCount());
+  }
+
+  private reportNextEnemyWaveTime() {
+    const nextSeconds = this.getNextEnemyWaveTimeSeconds();
 
     const roundedToTenths = Math.round(nextSeconds * 10) / 10;
     if (roundedToTenths === this.lastReportedEnemyWaveTenths) {
@@ -1185,7 +1376,7 @@ export class GameEngine {
     this.enemyWaveQueues.set(nestId, queue);
   }
 
-  private spawnWaveUnits(world: GameWorld, enemyNest: EnemyNest, maxSpawnPerTick = ENEMY_WAVE_MAX_SPAWN_PER_TICK) {
+  private spawnWaveUnits(world: GameWorld, enemyNest: EnemyNest, maxSpawnPerTick: number = ENEMY_WAVE_MAX_SPAWN_PER_TICK) {
     const queue = this.enemyWaveQueues.get(enemyNest.id) ?? [];
 
     if (queue.length === 0) {
