@@ -32,6 +32,8 @@ import {
   SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
   SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
   SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
+  SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
+  MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
   MAX_SOLDIER_ATTACK_RANGE_BONUS,
   MAX_SOLDIER_DAMAGE_MULTIPLIER,
   MAX_SOLDIER_HEALTH_MULTIPLIER,
@@ -204,6 +206,7 @@ interface GameEngineOptions {
     soldierSpeed: number;
     soldierTauntRange: number;
     soldierAttackRange: number;
+    soldierAttackCooldown: number;
   };
 }
 
@@ -265,6 +268,7 @@ export class GameEngine {
     soldierSpeed: number;
     soldierTauntRange: number;
     soldierAttackRange: number;
+    soldierAttackCooldown: number;
   };
   private lastReportedEnemyWaveTenths = Number.NaN;
 
@@ -593,6 +597,7 @@ export class GameEngine {
       soldierSpeed: 0,
       soldierTauntRange: 0,
       soldierAttackRange: 0,
+      soldierAttackCooldown: 0,
     };
 
     const maxFoodOnField = Math.min(
@@ -626,6 +631,10 @@ export class GameEngine {
       MAX_SOLDIER_ATTACK_RANGE_BONUS,
       Math.max(0, upgradeLevels.soldierAttackRange) * SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
     );
+    const soldierAttackCooldownMultiplier = Math.max(
+      MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
+      1 - Math.max(0, upgradeLevels.soldierAttackCooldown) * SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
+    );
 
     return {
       width: this.width,
@@ -645,6 +654,7 @@ export class GameEngine {
       soldierSpeedMultiplier,
       soldierTauntRadiusBonus,
       soldierAttackRangeBonus,
+      soldierAttackCooldownMultiplier,
       idleCooldownMultiplier: 1,
       carryCapacityBonus: Math.max(0, upgradeLevels.carryCapacity),
       maxFoodOnField,
@@ -797,6 +807,7 @@ export class GameEngine {
       soldierSpeed: 0,
       soldierTauntRange: 0,
       soldierAttackRange: 0,
+      soldierAttackCooldown: 0,
     };
 
     const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
@@ -864,7 +875,7 @@ export class GameEngine {
     this.enemyNests.push(enemyNest);
 
     const initialWaveIndex = 1;
-    const initialWaveQueue = this.createWaveOrders(enemyNest.currentLevel, initialWaveIndex);
+    const initialWaveQueue = this.createWaveOrders(enemyNest.id, initialWaveIndex);
     this.enemyWaveCounters.set(id, initialWaveIndex);
     this.enemyWaveTimersSeconds.set(id, this.getNextWaveCooldownSeconds(enemyNest.currentLevel));
     this.enemyWaveQueues.set(id, initialWaveQueue);
@@ -1866,7 +1877,7 @@ export class GameEngine {
     this.enemyWaveTimersSeconds.set(nestId, this.getNextWaveCooldownSeconds(enemyNest.currentLevel));
 
     const queue = this.enemyWaveQueues.get(nestId) ?? [];
-    queue.push(...this.createWaveOrders(enemyNest.currentLevel, nextWave));
+    queue.push(...this.createWaveOrders(enemyNest.id, nextWave));
     this.enemyWaveQueues.set(nestId, queue);
   }
 
@@ -1897,26 +1908,24 @@ export class GameEngine {
     this.enemyWaveQueues.set(enemyNest.id, queue);
   }
 
-  private createWaveOrders(level: number, waveIndex: number): EnemyWaveOrder[] {
-    const waveSize = 3 + Math.floor(Math.random() * 3);
+  private createWaveOrders(nestId: string, waveIndex: number): EnemyWaveOrder[] {
+    const waveBaseSize = 5;
+    const waveGrowthPerWave = 3;
+    const safeWaveIndex = Math.max(1, Math.floor(waveIndex));
+    const nestSequence = this.getEnemyNestSequence(nestId);
+    const shouldScaleByWave = nestSequence >= 2;
+    const waveSize = shouldScaleByWave
+      ? waveBaseSize + (safeWaveIndex - 1) * waveGrowthPerWave
+      : waveBaseSize;
     const tacticCycle: EnemySquadTactic[] = [EnemySquadTactic.RAID, EnemySquadTactic.HARASS, EnemySquadTactic.SIEGE];
     const tactic = tacticCycle[(waveIndex - 1) % tacticCycle.length] ?? EnemySquadTactic.RAID;
-    const bruteCount = Math.max(1, Math.floor(waveSize * 0.25));
-    const spitterCount = level >= 3 ? Math.max(1, Math.floor(waveSize * 0.2)) : 0;
-    const runnerCount = Math.max(1, waveSize - bruteCount - spitterCount);
+    const roles: EnemyAntRole[] = [EnemyAntRole.BRUTE, EnemyAntRole.RUNNER, EnemyAntRole.SPITTER];
 
     const orders: EnemyWaveOrder[] = [];
 
-    for (let i = 0; i < bruteCount; i += 1) {
-      orders.push({ role: EnemyAntRole.BRUTE, tactic, waveIndex });
-    }
-
-    for (let i = 0; i < spitterCount; i += 1) {
-      orders.push({ role: EnemyAntRole.SPITTER, tactic, waveIndex });
-    }
-
-    for (let i = 0; i < runnerCount; i += 1) {
-      orders.push({ role: EnemyAntRole.RUNNER, tactic, waveIndex });
+    for (let index = 0; index < waveSize; index += 1) {
+      const role = roles[Math.floor(Math.random() * roles.length)] ?? EnemyAntRole.RUNNER;
+      orders.push({ role, tactic, waveIndex: safeWaveIndex });
     }
 
     for (let index = orders.length - 1; index > 0; index -= 1) {
@@ -1927,6 +1936,21 @@ export class GameEngine {
     }
 
     return orders;
+  }
+
+  private getEnemyNestSequence(nestId: string) {
+    const match = nestId.match(/(\d+)$/);
+
+    if (!match) {
+      return 1;
+    }
+
+    const zeroBased = Number(match[1]);
+    if (!Number.isFinite(zeroBased)) {
+      return 1;
+    }
+
+    return Math.max(1, Math.floor(zeroBased) + 1);
   }
 
   private getNextWaveCooldownSeconds(level: number) {
@@ -2002,6 +2026,7 @@ export class GameEngine {
       soldierSpeed: 0,
       soldierTauntRange: 0,
       soldierAttackRange: 0,
+      soldierAttackCooldown: 0,
     };
     const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
     const currentPopulation = this.getPopulationUsage ? this.getPopulationUsage() : this.getPopulationCount();

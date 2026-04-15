@@ -19,6 +19,7 @@ const DEFAULT_STATE: SavedGameState = {
     soldierSpeed: 0,
     soldierTauntRange: 0,
     soldierAttackRange: 0,
+    soldierAttackCooldown: 0,
   },
   last_sync_timestamp: Date.now(),
 };
@@ -70,7 +71,8 @@ function isSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.soldierHealth === 'number' &&
     typeof upgradeLevels.soldierSpeed === 'number' &&
     typeof upgradeLevels.soldierTauntRange === 'number' &&
-    typeof upgradeLevels.soldierAttackRange === 'number'
+    typeof upgradeLevels.soldierAttackRange === 'number' &&
+    typeof upgradeLevels.soldierAttackCooldown === 'number'
   );
 }
 
@@ -90,6 +92,7 @@ function normalizeSavedGameState(state: SavedGameState): SavedGameState {
       soldierSpeed: clampUpgradeLevel(state.upgrade_levels.soldierSpeed),
       soldierTauntRange: clampUpgradeLevel(state.upgrade_levels.soldierTauntRange),
       soldierAttackRange: clampUpgradeLevel(state.upgrade_levels.soldierAttackRange),
+      soldierAttackCooldown: clampUpgradeLevel(state.upgrade_levels.soldierAttackCooldown),
     },
   };
 }

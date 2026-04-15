@@ -62,6 +62,7 @@ export class PlayerSoldier implements GameEntity {
   private attackRangeBonus = 0;
   private tauntRadiusBonus = 0;
   private readonly baseAttackCooldownSeconds: number;
+  private attackCooldownMultiplier = 1;
   private readonly populationCost: number;
   private readonly defendOrbitPhase: number;
   private readonly defendRadiusOffset: number;
@@ -136,7 +137,7 @@ export class PlayerSoldier implements GameEntity {
   }
 
   triggerAttackCooldown() {
-    this.attackCooldownSeconds = this.baseAttackCooldownSeconds;
+    this.attackCooldownSeconds = Math.max(0.25, this.baseAttackCooldownSeconds * this.attackCooldownMultiplier);
   }
 
   distanceTo(x: number, y: number) {
@@ -170,6 +171,7 @@ export class PlayerSoldier implements GameEntity {
     this.damageMultiplier = Math.max(1, world.soldierDamageMultiplier);
     this.attackRangeBonus = this.role === AntRole.SPITTER ? Math.max(0, world.soldierAttackRangeBonus) : 0;
     this.tauntRadiusBonus = Math.max(0, world.soldierTauntRadiusBonus);
+    this.attackCooldownMultiplier = Math.max(0.25, world.soldierAttackCooldownMultiplier);
 
     const movementMultiplier = world.antSpeedMultiplier * Math.max(0.1, world.soldierSpeedMultiplier);
 

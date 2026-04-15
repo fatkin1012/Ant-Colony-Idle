@@ -18,7 +18,8 @@ export type UpgradeKey =
   | 'soldierHealth'
   | 'soldierSpeed'
   | 'soldierTauntRange'
-  | 'soldierAttackRange';
+  | 'soldierAttackRange'
+  | 'soldierAttackCooldown';
 
 export interface UpgradeState {
   queenSpawnRate: number;
@@ -33,6 +34,7 @@ export interface UpgradeState {
   soldierSpeed: number;
   soldierTauntRange: number;
   soldierAttackRange: number;
+  soldierAttackCooldown: number;
 }
 
 export interface BattleDeployment {
@@ -80,6 +82,7 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   soldierSpeed: 42,
   soldierTauntRange: 40,
   soldierAttackRange: 46,
+  soldierAttackCooldown: 50,
 };
 
 const UPGRADE_COST_GROWTH = 1.45;
@@ -113,6 +116,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     soldierSpeed: 0,
     soldierTauntRange: 0,
     soldierAttackRange: 0,
+    soldierAttackCooldown: 0,
   },
   hydrateFromPersistence: (state) => {
     set({
@@ -136,6 +140,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         soldierSpeed: clampUpgradeLevel(state.upgradeLevels.soldierSpeed),
         soldierTauntRange: clampUpgradeLevel(state.upgradeLevels.soldierTauntRange),
         soldierAttackRange: clampUpgradeLevel(state.upgradeLevels.soldierAttackRange),
+        soldierAttackCooldown: clampUpgradeLevel(state.upgradeLevels.soldierAttackCooldown),
       },
     });
   },

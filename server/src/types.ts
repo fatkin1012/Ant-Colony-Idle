@@ -14,6 +14,7 @@ export interface SavedGameState {
     soldierSpeed: number;
     soldierTauntRange: number;
     soldierAttackRange: number;
+    soldierAttackCooldown: number;
   };
   last_sync_timestamp: number;
 }

@@ -24,10 +24,12 @@ import {
   POPULATION_CAPACITY_PER_LEVEL,
   MIN_SPAWN_INTERVAL_SECONDS,
   SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
+  SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
   SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
   SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
   SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
   SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
+  MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
   SPAWN_REDUCTION_PER_LEVEL,
 } from '../game/upgradeBalances';
 
@@ -183,6 +185,12 @@ function formatEffect(
       : `Next level: spitter attack range +${SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL.toFixed(1)}`;
   }
 
+  if (upgradeKey === 'soldierAttackCooldown') {
+    return isZh
+      ? `下一級：兵種攻速間隔 -${(SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL * 100).toFixed(1)}%`
+      : `Next level: soldier attack interval -${(SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL * 100).toFixed(1)}%`;
+  }
+
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
@@ -261,6 +269,16 @@ function formatCurrentValue(
     return isZh ? `目前：酸液兵攻擊距離 +${bonus.toFixed(1)}` : `Current: +${bonus.toFixed(1)} spitter range`;
   }
 
+  if (upgradeKey === 'soldierAttackCooldown') {
+    const cooldownMultiplier = Math.max(
+      MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
+      1 - Math.max(0, level) * SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
+    );
+    return isZh
+      ? `目前：兵種攻速間隔 x${cooldownMultiplier.toFixed(2)}`
+      : `Current: x${cooldownMultiplier.toFixed(2)} soldier attack interval`;
+  }
+
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
@@ -281,6 +299,7 @@ const UPGRADE_CARD_TEXT: Record<
     soldierSpeed: { label: '兵種速度', title: '加快兵蟻移動效率' },
     soldierTauntRange: { label: '嘲諷範圍', title: '守衛吸引敵人更遠距離' },
     soldierAttackRange: { label: '攻擊距離', title: '酸液兵可在更遠處交戰' },
+    soldierAttackCooldown: { label: '攻速間隔', title: '縮短兵蟻每次攻擊的冷卻時間' },
   },
   en: {
     queenSpawnRate: { label: 'Queen Spawn Rate', title: 'Faster Ant Production' },
@@ -295,6 +314,7 @@ const UPGRADE_CARD_TEXT: Record<
     soldierSpeed: { label: 'Soldier Speed', title: 'Faster Unit Movement' },
     soldierTauntRange: { label: 'Taunt Radius', title: 'Guardians Pull Enemies From Farther Away' },
     soldierAttackRange: { label: 'Attack Range', title: 'Spitters Engage From Longer Distance' },
+    soldierAttackCooldown: { label: 'Attack Interval', title: 'Reduce Time Between Soldier Attacks' },
   },
 };
 
@@ -314,6 +334,7 @@ const SOLDIER_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
   { key: 'soldierSpeed' },
   { key: 'soldierTauntRange' },
   { key: 'soldierAttackRange' },
+  { key: 'soldierAttackCooldown' },
 ];
 
 interface UpgradeOverlayProps {

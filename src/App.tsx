@@ -27,6 +27,7 @@ const EMPTY_UPGRADE_LEVELS = {
   soldierSpeed: 0,
   soldierTauntRange: 0,
   soldierAttackRange: 0,
+  soldierAttackCooldown: 0,
 } as const;
 
 const TRANSLATIONS: Record<

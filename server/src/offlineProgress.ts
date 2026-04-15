@@ -56,6 +56,7 @@ export function calculateOfflineProgress(state: SavedGameState, nowTimestamp: nu
         soldierSpeed: state.upgrade_levels.soldierSpeed,
         soldierTauntRange: state.upgrade_levels.soldierTauntRange,
         soldierAttackRange: state.upgrade_levels.soldierAttackRange,
+        soldierAttackCooldown: state.upgrade_levels.soldierAttackCooldown,
       },
       last_sync_timestamp: nowTimestamp,
     },

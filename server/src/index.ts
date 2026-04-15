@@ -38,6 +38,7 @@ app.post('/api/save', async (request, response) => {
       soldierSpeed: clampUpgradeLevel(body.upgrade_levels.soldierSpeed),
       soldierTauntRange: clampUpgradeLevel(body.upgrade_levels.soldierTauntRange),
       soldierAttackRange: clampUpgradeLevel(body.upgrade_levels.soldierAttackRange),
+      soldierAttackCooldown: clampUpgradeLevel(body.upgrade_levels.soldierAttackCooldown),
     },
     last_sync_timestamp: Date.now(),
   } satisfies SavedGameState;
@@ -84,7 +85,8 @@ function isValidSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.soldierHealth === 'number' &&
     typeof upgradeLevels.soldierSpeed === 'number' &&
     typeof upgradeLevels.soldierTauntRange === 'number' &&
-    typeof upgradeLevels.soldierAttackRange === 'number'
+    typeof upgradeLevels.soldierAttackRange === 'number' &&
+    typeof upgradeLevels.soldierAttackCooldown === 'number'
   );
 }
 
