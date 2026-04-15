@@ -8,6 +8,7 @@ export interface AntConfig {
   x: number;
   y: number;
   state?: AntState;
+  carriedFoodCount?: number;
 }
 
 const ANT_PIXEL_SIZE = WORKER_TUNING.pixelSize;
@@ -110,6 +111,7 @@ export class Ant implements GameEntity {
   private idlePulse = Math.random() * Math.PI * 2;
   private idleReturnCountdownSeconds: number | null = null;
   private carriedFoodCount = 0;
+  private pendingDeliveredFoodCount = 0;
   private hp: number = ANT_MAX_HEALTH;
 
   constructor(config: AntConfig) {
@@ -117,6 +119,7 @@ export class Ant implements GameEntity {
     this.x = config.x;
     this.y = config.y;
     this.state = config.state ?? 'SEARCHING';
+    this.carriedFoodCount = Math.max(0, Math.floor(config.carriedFoodCount ?? 0));
   }
 
   get position() {
@@ -133,6 +136,16 @@ export class Ant implements GameEntity {
 
   collectFood() {
     this.carriedFoodCount += 1;
+  }
+
+  get carriedFood() {
+    return this.carriedFoodCount;
+  }
+
+  consumeDeliveredFood() {
+    const delivered = this.pendingDeliveredFoodCount;
+    this.pendingDeliveredFoodCount = 0;
+    return delivered;
   }
 
   applyDamage(amount: number) {
@@ -161,6 +174,7 @@ export class Ant implements GameEntity {
       this.moveTowards(world.center.x, world.center.y, RETURN_SPEED * world.antSpeedMultiplier, deltaTime);
 
       if (distanceSquared(this.x, this.y, world.center.x, world.center.y) <= world.nestRadius * world.nestRadius) {
+        this.pendingDeliveredFoodCount += this.carriedFoodCount;
         this.carriedFoodCount = 0;
         this.state = 'SEARCHING';
         this.idleReturnCountdownSeconds = null;

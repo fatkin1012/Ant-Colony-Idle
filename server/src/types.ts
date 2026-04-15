@@ -8,6 +8,12 @@ export interface SavedGameState {
     nestRecovery: number;
     foodCapacity: number;
     forageRadius: number;
+    populationCapacity: number;
+    soldierDamage: number;
+    soldierHealth: number;
+    soldierSpeed: number;
+    soldierTauntRange: number;
+    soldierAttackRange: number;
   };
   last_sync_timestamp: number;
 }

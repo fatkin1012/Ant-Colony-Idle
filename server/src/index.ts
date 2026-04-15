@@ -32,6 +32,12 @@ app.post('/api/save', async (request, response) => {
       nestRecovery: clampUpgradeLevel(body.upgrade_levels.nestRecovery),
       foodCapacity: clampUpgradeLevel(body.upgrade_levels.foodCapacity),
       forageRadius: clampUpgradeLevel(body.upgrade_levels.forageRadius),
+      populationCapacity: clampUpgradeLevel(body.upgrade_levels.populationCapacity),
+      soldierDamage: clampUpgradeLevel(body.upgrade_levels.soldierDamage),
+      soldierHealth: clampUpgradeLevel(body.upgrade_levels.soldierHealth),
+      soldierSpeed: clampUpgradeLevel(body.upgrade_levels.soldierSpeed),
+      soldierTauntRange: clampUpgradeLevel(body.upgrade_levels.soldierTauntRange),
+      soldierAttackRange: clampUpgradeLevel(body.upgrade_levels.soldierAttackRange),
     },
     last_sync_timestamp: Date.now(),
   } satisfies SavedGameState;
@@ -72,7 +78,13 @@ function isValidSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.nestRecovery === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
-    typeof upgradeLevels.forageRadius === 'number'
+    typeof upgradeLevels.forageRadius === 'number' &&
+    typeof upgradeLevels.populationCapacity === 'number' &&
+    typeof upgradeLevels.soldierDamage === 'number' &&
+    typeof upgradeLevels.soldierHealth === 'number' &&
+    typeof upgradeLevels.soldierSpeed === 'number' &&
+    typeof upgradeLevels.soldierTauntRange === 'number' &&
+    typeof upgradeLevels.soldierAttackRange === 'number'
   );
 }
 

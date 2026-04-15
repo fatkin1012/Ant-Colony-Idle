@@ -4,6 +4,8 @@ import type { PersistedGameState } from './gamePersistence';
 import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
+export const INITIAL_FOOD_AMOUNT = 300;
+
 export type UpgradeKey =
   | 'queenSpawnRate'
   | 'carryCapacity'
@@ -11,7 +13,12 @@ export type UpgradeKey =
   | 'nestRecovery'
   | 'foodCapacity'
   | 'forageRadius'
-  | 'populationCapacity';
+  | 'populationCapacity'
+  | 'soldierDamage'
+  | 'soldierHealth'
+  | 'soldierSpeed'
+  | 'soldierTauntRange'
+  | 'soldierAttackRange';
 
 export interface UpgradeState {
   queenSpawnRate: number;
@@ -21,6 +28,11 @@ export interface UpgradeState {
   foodCapacity: number;
   forageRadius: number;
   populationCapacity: number;
+  soldierDamage: number;
+  soldierHealth: number;
+  soldierSpeed: number;
+  soldierTauntRange: number;
+  soldierAttackRange: number;
 }
 
 export interface BattleDeployment {
@@ -63,6 +75,11 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   foodCapacity: 30,
   forageRadius: 35,
   populationCapacity: 55,
+  soldierDamage: 44,
+  soldierHealth: 48,
+  soldierSpeed: 42,
+  soldierTauntRange: 40,
+  soldierAttackRange: 46,
 };
 
 const UPGRADE_COST_GROWTH = 1.45;
@@ -77,7 +94,7 @@ function clampUpgradeLevel(level: number) {
 
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
-  foodAmount: 500,
+  foodAmount: INITIAL_FOOD_AMOUNT,
   nestHealth: 100,
   nextEnemyWaveInSeconds: 0,
   engineState: null,
@@ -91,6 +108,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     foodCapacity: 0,
     forageRadius: 0,
     populationCapacity: 0,
+    soldierDamage: 0,
+    soldierHealth: 0,
+    soldierSpeed: 0,
+    soldierTauntRange: 0,
+    soldierAttackRange: 0,
   },
   hydrateFromPersistence: (state) => {
     set({
@@ -99,6 +121,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       nestHealth: Math.max(0, Math.floor(state.nestHealth)),
       nextEnemyWaveInSeconds: Math.max(0, Math.floor(state.nextEnemyWaveInSeconds ?? 0)),
       engineState: state.engineState ?? null,
+      lastNestHitAt: 0,
+      battleDeployments: [],
       upgradeLevels: {
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
@@ -107,6 +131,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
         forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
         populationCapacity: clampUpgradeLevel(state.upgradeLevels.populationCapacity),
+        soldierDamage: clampUpgradeLevel(state.upgradeLevels.soldierDamage),
+        soldierHealth: clampUpgradeLevel(state.upgradeLevels.soldierHealth),
+        soldierSpeed: clampUpgradeLevel(state.upgradeLevels.soldierSpeed),
+        soldierTauntRange: clampUpgradeLevel(state.upgradeLevels.soldierTauntRange),
+        soldierAttackRange: clampUpgradeLevel(state.upgradeLevels.soldierAttackRange),
       },
     });
   },

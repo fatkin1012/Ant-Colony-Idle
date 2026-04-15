@@ -13,6 +13,12 @@ const DEFAULT_STATE: SavedGameState = {
     nestRecovery: 0,
     foodCapacity: 0,
     forageRadius: 0,
+    populationCapacity: 0,
+    soldierDamage: 0,
+    soldierHealth: 0,
+    soldierSpeed: 0,
+    soldierTauntRange: 0,
+    soldierAttackRange: 0,
   },
   last_sync_timestamp: Date.now(),
 };
@@ -58,7 +64,13 @@ function isSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.nestRecovery === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
-    typeof upgradeLevels.forageRadius === 'number'
+    typeof upgradeLevels.forageRadius === 'number' &&
+    typeof upgradeLevels.populationCapacity === 'number' &&
+    typeof upgradeLevels.soldierDamage === 'number' &&
+    typeof upgradeLevels.soldierHealth === 'number' &&
+    typeof upgradeLevels.soldierSpeed === 'number' &&
+    typeof upgradeLevels.soldierTauntRange === 'number' &&
+    typeof upgradeLevels.soldierAttackRange === 'number'
   );
 }
 
@@ -72,6 +84,12 @@ function normalizeSavedGameState(state: SavedGameState): SavedGameState {
       nestRecovery: clampUpgradeLevel(state.upgrade_levels.nestRecovery),
       foodCapacity: clampUpgradeLevel(state.upgrade_levels.foodCapacity),
       forageRadius: clampUpgradeLevel(state.upgrade_levels.forageRadius),
+      populationCapacity: clampUpgradeLevel(state.upgrade_levels.populationCapacity),
+      soldierDamage: clampUpgradeLevel(state.upgrade_levels.soldierDamage),
+      soldierHealth: clampUpgradeLevel(state.upgrade_levels.soldierHealth),
+      soldierSpeed: clampUpgradeLevel(state.upgrade_levels.soldierSpeed),
+      soldierTauntRange: clampUpgradeLevel(state.upgrade_levels.soldierTauntRange),
+      soldierAttackRange: clampUpgradeLevel(state.upgrade_levels.soldierAttackRange),
     },
   };
 }

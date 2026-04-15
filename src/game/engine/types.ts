@@ -10,11 +10,17 @@ export interface GameWorld {
   readonly nestRadius: number;
   readonly time: number;
   readonly antSpeedMultiplier: number;
+  readonly soldierDamageMultiplier: number;
+  readonly soldierHealthMultiplier: number;
+  readonly soldierSpeedMultiplier: number;
+  readonly soldierTauntRadiusBonus: number;
+  readonly soldierAttackRangeBonus: number;
   readonly idleCooldownMultiplier: number;
   readonly carryCapacityBonus: number;
   readonly maxFoodOnField: number;
   readonly maxForageRadius: number;
   readonly foodPositions: Vec2[];
+  readonly playerUnits?: Array<{ id: string; x: number; y: number; kind: 'WORKER' | 'SOLDIER' }>;
   readonly enemyAnts?: Array<{ id: string; x: number; y: number; role?: 'BRUTE' | 'RUNNER' | 'SPITTER' }>;
   readonly tauntingGuardians?: Array<{ id: string; x: number; y: number; tauntRadius: number }>;
   readonly enemyNests?: Array<{ id: string; x: number; y: number; radius: number }>;

@@ -27,6 +27,16 @@ import {
   PLAYER_NEST_MAX_HEALTH,
   BASE_POPULATION_CAPACITY,
   POPULATION_CAPACITY_PER_LEVEL,
+  SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
+  SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
+  SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
+  SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
+  SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
+  MAX_SOLDIER_ATTACK_RANGE_BONUS,
+  MAX_SOLDIER_DAMAGE_MULTIPLIER,
+  MAX_SOLDIER_HEALTH_MULTIPLIER,
+  MAX_SOLDIER_SPEED_MULTIPLIER,
+  MAX_SOLDIER_TAUNT_RADIUS_BONUS,
   SPAWN_REDUCTION_PER_LEVEL,
 } from '../upgradeBalances';
 import type { BattleDeployment } from '../../state/gameStore';
@@ -54,12 +64,21 @@ const ENEMY_ANT_KILL_REWARD_FOOD = 10;
 const ENEMY_NEST_BASE_DESTROY_REWARD_FOOD = 500;
 const ENEMY_NEST_DESTROY_REWARD_PER_LEVEL = 200;
 const SPITTER_ATTACK_EFFECT_LIFETIME_SECONDS = 0.2;
+const HIT_FLASH_LIFETIME_SECONDS = 0.1;
+const DAMAGE_TEXT_LIFETIME_SECONDS = 0.45;
+const DEATH_DUST_LIFETIME_SECONDS = 0.38;
+const SLASH_EFFECT_LIFETIME_SECONDS = 0.2;
+const MAX_HIT_FLASH_EFFECTS = 90;
+const MAX_DAMAGE_TEXT_EFFECTS = 45;
+const MAX_DEATH_DUST_EFFECTS = 90;
+const MAX_SLASH_EFFECTS = 100;
 
 export interface PlayerAntSnapshot {
   id: string;
   x: number;
   y: number;
   state: AntState;
+  carriedFoodCount?: number;
 }
 
 export interface PlayerSoldierSnapshot {
@@ -77,6 +96,45 @@ interface SpitterAttackEffect {
   toY: number;
   elapsed: number;
   lifetime: number;
+}
+
+interface HitFlashEffect {
+  x: number;
+  y: number;
+  radius: number;
+  elapsed: number;
+  lifetime: number;
+  color: string;
+}
+
+interface DamageTextEffect {
+  x: number;
+  y: number;
+  value: number;
+  elapsed: number;
+  lifetime: number;
+  color: string;
+}
+
+interface DeathDustEffect {
+  x: number;
+  y: number;
+  driftX: number;
+  driftY: number;
+  radius: number;
+  elapsed: number;
+  lifetime: number;
+}
+
+interface SlashEffect {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  elapsed: number;
+  lifetime: number;
+  color: string;
+  width: number;
 }
 
 interface EnemyWaveOrder {
@@ -141,6 +199,11 @@ interface GameEngineOptions {
     foodCapacity: number;
     forageRadius: number;
     populationCapacity: number;
+    soldierDamage: number;
+    soldierHealth: number;
+    soldierSpeed: number;
+    soldierTauntRange: number;
+    soldierAttackRange: number;
   };
 }
 
@@ -167,6 +230,12 @@ export class GameEngine {
   private spawnAccumulatorSeconds = 0;
   private nextEnemyCaveSpawnAtSeconds = ENEMY_CAVE_FIRST_SPAWN_AT_SECONDS;
   private readonly spitterAttackEffects: SpitterAttackEffect[] = [];
+  private readonly hitFlashEffects: HitFlashEffect[] = [];
+  private readonly damageTextEffects: DamageTextEffect[] = [];
+  private readonly deathDustEffects: DeathDustEffect[] = [];
+  private readonly slashEffects: SlashEffect[] = [];
+  private cameraShakeSeconds = 0;
+  private cameraShakeStrength = 0;
   private nestHealth = PLAYER_NEST_MAX_HEALTH;
   private readonly enemyWaveTimersSeconds = new Map<string, number>();
   private readonly enemyWaveCounters = new Map<string, number>();
@@ -191,6 +260,11 @@ export class GameEngine {
     foodCapacity: number;
     forageRadius: number;
     populationCapacity: number;
+    soldierDamage: number;
+    soldierHealth: number;
+    soldierSpeed: number;
+    soldierTauntRange: number;
+    soldierAttackRange: number;
   };
   private lastReportedEnemyWaveTenths = Number.NaN;
 
@@ -258,6 +332,11 @@ export class GameEngine {
     this.resizeObserver.disconnect();
     this.entityManager.clear();
     this.enemyNests = [];
+    this.spitterAttackEffects.length = 0;
+    this.hitFlashEffects.length = 0;
+    this.damageTextEffects.length = 0;
+    this.deathDustEffects.length = 0;
+    this.slashEffects.length = 0;
   }
 
   private readonly tick = () => {
@@ -308,6 +387,7 @@ export class GameEngine {
     this.updateTimedEnemyCaveSpawning(world);
     this.updateEnemyNestSpawning(deltaTime, world);
     this.entityManager.update(deltaTime, world);
+    this.resolveFoodDeliveries();
     this.resolveFoodPickups(world);
     this.resolveEnemyCombat(deltaTime, world);
     this.applyNestRecovery(deltaTime);
@@ -335,6 +415,7 @@ export class GameEngine {
           x: entity.position.x,
           y: entity.position.y,
           state: entity.state as AntState,
+          carriedFoodCount: entity.carriedFood,
         });
       } else if (entity instanceof PlayerSoldier && entity.alive) {
         playerSoldiers.push({
@@ -413,6 +494,11 @@ export class GameEngine {
     this.enemyWaveTimersSeconds.clear();
     this.enemyWaveCounters.clear();
     this.enemyWaveQueues.clear();
+    this.spitterAttackEffects.length = 0;
+    this.hitFlashEffects.length = 0;
+    this.damageTextEffects.length = 0;
+    this.deathDustEffects.length = 0;
+    this.slashEffects.length = 0;
 
     for (const ant of snapshot.playerAnts) {
       this.entityManager.add(
@@ -421,6 +507,7 @@ export class GameEngine {
           x: ant.x,
           y: ant.y,
           state: ant.state,
+          carriedFoodCount: Math.max(0, Math.floor(ant.carriedFoodCount ?? 0)),
         }),
       );
     }
@@ -501,6 +588,11 @@ export class GameEngine {
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,
+      soldierDamage: 0,
+      soldierHealth: 0,
+      soldierSpeed: 0,
+      soldierTauntRange: 0,
+      soldierAttackRange: 0,
     };
 
     const maxFoodOnField = Math.min(
@@ -514,6 +606,26 @@ export class GameEngine {
     );
 
     const maxForageRadius = Math.max(56, Math.min(this.width, this.height) * forageRadiusFactor);
+    const soldierDamageMultiplier = Math.min(
+      MAX_SOLDIER_DAMAGE_MULTIPLIER,
+      1 + Math.max(0, upgradeLevels.soldierDamage) * SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
+    );
+    const soldierHealthMultiplier = Math.min(
+      MAX_SOLDIER_HEALTH_MULTIPLIER,
+      1 + Math.max(0, upgradeLevels.soldierHealth) * SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
+    );
+    const soldierSpeedMultiplier = Math.min(
+      MAX_SOLDIER_SPEED_MULTIPLIER,
+      1 + Math.max(0, upgradeLevels.soldierSpeed) * SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
+    );
+    const soldierTauntRadiusBonus = Math.min(
+      MAX_SOLDIER_TAUNT_RADIUS_BONUS,
+      Math.max(0, upgradeLevels.soldierTauntRange) * SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
+    );
+    const soldierAttackRangeBonus = Math.min(
+      MAX_SOLDIER_ATTACK_RANGE_BONUS,
+      Math.max(0, upgradeLevels.soldierAttackRange) * SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
+    );
 
     return {
       width: this.width,
@@ -528,11 +640,24 @@ export class GameEngine {
         MAX_ANT_SPEED_MULTIPLIER,
         1 + Math.max(0, upgradeLevels.antSpeed) * ANT_SPEED_MULTIPLIER_PER_LEVEL,
       ),
+      soldierDamageMultiplier,
+      soldierHealthMultiplier,
+      soldierSpeedMultiplier,
+      soldierTauntRadiusBonus,
+      soldierAttackRangeBonus,
       idleCooldownMultiplier: 1,
       carryCapacityBonus: Math.max(0, upgradeLevels.carryCapacity),
       maxFoodOnField,
       maxForageRadius,
       foodPositions: this.foods.filter((food) => food.alive).map((food) => food.position),
+      playerUnits: Array.from(this.entityManager.values())
+        .filter((entity): entity is Ant | PlayerSoldier => (entity instanceof Ant || entity instanceof PlayerSoldier) && entity.alive)
+        .map((unit) => ({
+          id: unit.id,
+          x: unit.position.x,
+          y: unit.position.y,
+          kind: unit instanceof PlayerSoldier ? 'SOLDIER' : 'WORKER',
+        })),
       enemyAnts: Array.from(this.entityManager.values())
         .filter((entity): entity is EnemyAnt => entity instanceof EnemyAnt && entity.alive)
         .map((enemyAnt) => ({
@@ -547,7 +672,7 @@ export class GameEngine {
           id: guardian.id,
           x: guardian.position.x,
           y: guardian.position.y,
-          tauntRadius: guardian.tauntRadius,
+          tauntRadius: guardian.getTauntRadius(soldierTauntRadiusBonus),
         })),
       enemyNests: this.enemyNests
         .filter((enemyNest) => enemyNest.alive)
@@ -565,11 +690,20 @@ export class GameEngine {
     this.context.fillStyle = BACKGROUND_COLOR;
     this.context.fillRect(0, 0, world.width, world.height);
 
+    const shakeFactor = this.cameraShakeSeconds <= 0 ? 0 : this.cameraShakeSeconds / Math.max(0.001, 0.12);
+    const shakeMagnitude = this.cameraShakeStrength * Math.max(0, Math.min(1, shakeFactor));
+    const shakeOffsetX = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude;
+    const shakeOffsetY = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude;
+
+    this.context.save();
+    this.context.translate(shakeOffsetX, shakeOffsetY);
+
     this.drawFood(world);
     this.drawEnemyNests();
     this.drawNest(world);
     this.entityManager.draw(this.context, world);
     this.drawAttackEffects();
+    this.context.restore();
   }
 
   private drawEnemyNests() {
@@ -658,6 +792,11 @@ export class GameEngine {
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,
+      soldierDamage: 0,
+      soldierHealth: 0,
+      soldierSpeed: 0,
+      soldierTauntRange: 0,
+      soldierAttackRange: 0,
     };
 
     const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
@@ -912,7 +1051,6 @@ export class GameEngine {
           if (ant.shouldReturnToNest(world.carryCapacityBonus)) {
             ant.markFound();
           }
-          this.onFoodCollected?.(FOOD_VALUE_PER_PICKUP);
           break;
         }
 
@@ -924,10 +1062,24 @@ export class GameEngine {
           if (ant.shouldReturnToNest(world.carryCapacityBonus)) {
             ant.markFound();
           }
-          this.onFoodCollected?.(FOOD_VALUE_PER_PICKUP);
           break;
         }
       }
+    }
+  }
+
+  private resolveFoodDeliveries() {
+    for (const entity of this.entityManager.values()) {
+      if (!(entity instanceof Ant) || !entity.alive) {
+        continue;
+      }
+
+      const delivered = entity.consumeDeliveredFood();
+      if (delivered <= 0) {
+        continue;
+      }
+
+      this.onFoodCollected?.(delivered * FOOD_VALUE_PER_PICKUP);
     }
   }
 
@@ -969,9 +1121,20 @@ export class GameEngine {
       const primaryTarget = tauntTarget ?? huntedWorker ?? nearestUnit;
 
       if (primaryTarget && enemyAnt.canAttack()) {
+        this.spawnSlashEffect(
+          enemyAnt.position.x,
+          enemyAnt.position.y,
+          primaryTarget.position.x,
+          primaryTarget.position.y,
+          '255, 122, 100',
+          1.6,
+        );
+        this.spawnHitFlash(primaryTarget.position.x, primaryTarget.position.y, enemyAnt.damage, '255, 170, 120');
+        this.spawnDamageText(primaryTarget.position.x, primaryTarget.position.y - 2, enemyAnt.damage, '#ffb089');
         const unitKilled = primaryTarget.applyDamage(enemyAnt.damage);
 
         if (unitKilled) {
+          this.spawnDeathDust(primaryTarget.position.x, primaryTarget.position.y, 1.1);
           if (primaryTarget instanceof PlayerSoldier) {
             this.onAntLost?.(primaryTarget.popCost);
           } else {
@@ -980,6 +1143,15 @@ export class GameEngine {
         }
 
         if (primaryTarget instanceof Ant && primaryTarget.alive) {
+          this.spawnSlashEffect(
+            primaryTarget.position.x,
+            primaryTarget.position.y,
+            enemyAnt.position.x,
+            enemyAnt.position.y,
+            '196, 243, 162',
+            1.3,
+          );
+          this.spawnHitFlash(enemyAnt.position.x, enemyAnt.position.y, WORKER_RETALIATE_DAMAGE, '214, 255, 183');
           const retaliateKilled = enemyAnt.applyDamage(WORKER_RETALIATE_DAMAGE);
 
           if (retaliateKilled) {
@@ -996,16 +1168,28 @@ export class GameEngine {
           const distanceToGuardian = enemyAnt.distanceTo(nestInterceptor.position.x, nestInterceptor.position.y);
 
           if (distanceToGuardian <= enemyAnt.attackRange + 2) {
+            this.spawnSlashEffect(
+              enemyAnt.position.x,
+              enemyAnt.position.y,
+              nestInterceptor.position.x,
+              nestInterceptor.position.y,
+              '255, 122, 100',
+              1.6,
+            );
+            this.spawnHitFlash(nestInterceptor.position.x, nestInterceptor.position.y, enemyAnt.damage, '255, 170, 120');
+            this.spawnDamageText(nestInterceptor.position.x, nestInterceptor.position.y - 2, enemyAnt.damage, '#ffb089');
             const unitKilled = nestInterceptor.applyDamage(enemyAnt.damage);
 
             if (unitKilled) {
+              this.spawnDeathDust(nestInterceptor.position.x, nestInterceptor.position.y, 1.2);
               this.onAntLost?.(nestInterceptor.popCost);
             }
 
             enemyAnt.triggerAttackCooldown();
           }
         } else {
-          this.applyNestDamage(enemyAnt.damage);
+          this.spawnSlashEffect(enemyAnt.position.x, enemyAnt.position.y, world.center.x, world.center.y, '255, 122, 100', 1.8);
+          this.applyNestDamage(enemyAnt.damage, world.center.x, world.center.y);
           enemyAnt.triggerAttackCooldown();
         }
       }
@@ -1037,6 +1221,10 @@ export class GameEngine {
           continue;
         }
 
+        if (Math.random() < deltaTime * 8) {
+          this.spawnSlashEffect(antPosition.x, antPosition.y, enemyAnt.position.x, enemyAnt.position.y, '196, 243, 162', 1.2);
+        }
+        this.spawnHitFlash(enemyAnt.position.x, enemyAnt.position.y, antDps * deltaTime, '211, 244, 166');
         const wasKilled = enemyAnt.applyDamage(deltaTime * antDps);
 
         if (wasKilled) {
@@ -1056,6 +1244,11 @@ export class GameEngine {
           continue;
         }
 
+        const slashColor = soldier.role === AntRole.SPITTER ? '180, 255, 146' : '213, 255, 176';
+        const slashWidth = soldier.role === AntRole.SPITTER ? 1.5 : 2.1;
+        this.spawnSlashEffect(soldier.position.x, soldier.position.y, enemyAnt.position.x, enemyAnt.position.y, slashColor, slashWidth);
+        this.spawnHitFlash(enemyAnt.position.x, enemyAnt.position.y, soldier.damage, '217, 255, 184');
+        this.spawnDamageText(enemyAnt.position.x, enemyAnt.position.y - 2, soldier.damage, '#fff2b0');
         const wasKilled = enemyAnt.applyDamage(soldier.damage);
 
         if (soldier.role === AntRole.SPITTER) {
@@ -1089,6 +1282,10 @@ export class GameEngine {
           continue;
         }
 
+        if (Math.random() < deltaTime * 6) {
+          this.spawnSlashEffect(antPosition.x, antPosition.y, nestPosition.x, nestPosition.y, '236, 214, 158', 1.1);
+        }
+        this.spawnHitFlash(nestPosition.x, nestPosition.y, ANT_ATTACK_DAMAGE_PER_SECOND * deltaTime, '255, 214, 151');
         const destroyed = enemyNest.applyDamage(deltaTime * (ANT_ATTACK_DAMAGE_PER_SECOND * 0.75));
 
         if (destroyed) {
@@ -1109,6 +1306,10 @@ export class GameEngine {
           continue;
         }
 
+        const slashWidth = soldier.role === AntRole.SPITTER ? 1.3 : 2;
+        this.spawnSlashEffect(soldier.position.x, soldier.position.y, nestPosition.x, nestPosition.y, '236, 214, 158', slashWidth);
+        this.spawnHitFlash(nestPosition.x, nestPosition.y, soldier.damage, '255, 214, 151');
+        this.spawnDamageText(nestPosition.x, nestPosition.y - 3, soldier.damage, '#ffe5a3');
         const destroyed = enemyNest.applyDamage(soldier.damage);
 
         if (soldier.role === AntRole.SPITTER) {
@@ -1128,10 +1329,11 @@ export class GameEngine {
   private handleEnemyNestDestroyed(enemyNest: EnemyNest) {
     const level = Math.max(1, enemyNest.currentLevel);
     const reward = ENEMY_NEST_BASE_DESTROY_REWARD_FOOD + (level - 1) * ENEMY_NEST_DESTROY_REWARD_PER_LEVEL;
+    this.spawnDeathDust(enemyNest.position.x, enemyNest.position.y, 2.2);
     this.onFoodCollected?.(reward);
   }
 
-  private applyNestDamage(amount: number) {
+  private applyNestDamage(amount: number, hitX?: number, hitY?: number) {
     if (amount <= 0 || this.nestHealth <= 0) {
       return;
     }
@@ -1141,6 +1343,11 @@ export class GameEngine {
 
     if (this.nestHealth < previousHealth) {
       this.onNestDamaged?.(previousHealth - this.nestHealth, this.nestHealth, PLAYER_NEST_MAX_HEALTH);
+      const flashX = Number.isFinite(hitX) ? (hitX as number) : this.width / 2;
+      const flashY = Number.isFinite(hitY) ? (hitY as number) : this.height / 2;
+      this.spawnHitFlash(flashX, flashY, amount, '255, 134, 96');
+      this.spawnDamageText(flashX, flashY - 6, amount, '#ff9d7f');
+      this.triggerCameraShake(1.7, 0.12);
     }
 
     this.onNestHealthChanged?.(this.nestHealth, PLAYER_NEST_MAX_HEALTH);
@@ -1181,6 +1388,126 @@ export class GameEngine {
     });
   }
 
+  private spawnSlashEffect(fromX: number, fromY: number, toX: number, toY: number, color: string, width = 1.4) {
+    if (!Number.isFinite(fromX) || !Number.isFinite(fromY) || !Number.isFinite(toX) || !Number.isFinite(toY)) {
+      return;
+    }
+
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 0.001) {
+      return;
+    }
+
+    const ux = dx / distance;
+    const uy = dy / distance;
+    const lineLength = Math.min(28, Math.max(10, distance * 0.9));
+    const centerX = toX - ux * Math.min(4, distance * 0.2);
+    const centerY = toY - uy * Math.min(4, distance * 0.2);
+    const jitter = (Math.random() * 2 - 1) * 0.45;
+
+    const startX = centerX - ux * lineLength * 0.5 + uy * jitter;
+    const startY = centerY - uy * lineLength * 0.5 - ux * jitter;
+    const endX = centerX + ux * lineLength * 0.5 - uy * jitter;
+    const endY = centerY + uy * lineLength * 0.5 + ux * jitter;
+
+    if (this.slashEffects.length >= MAX_SLASH_EFFECTS) {
+      this.slashEffects.shift();
+    }
+
+    this.slashEffects.push({
+      fromX: startX,
+      fromY: startY,
+      toX: endX,
+      toY: endY,
+      elapsed: 0,
+      lifetime: SLASH_EFFECT_LIFETIME_SECONDS,
+      color,
+      width,
+    });
+  }
+
+  private spawnHitFlash(x: number, y: number, amount: number, color = '255, 238, 168') {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || amount <= 0) {
+      return;
+    }
+
+    if (this.hitFlashEffects.length >= MAX_HIT_FLASH_EFFECTS) {
+      this.hitFlashEffects.shift();
+    }
+
+    this.hitFlashEffects.push({
+      x,
+      y,
+      radius: Math.min(8, 2.4 + Math.sqrt(Math.max(0, amount)) * 1.2),
+      elapsed: 0,
+      lifetime: HIT_FLASH_LIFETIME_SECONDS,
+      color,
+    });
+  }
+
+  private spawnDamageText(x: number, y: number, amount: number, color = '#ffe9a3') {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || amount <= 0) {
+      return;
+    }
+
+    const rounded = Math.max(1, Math.round(amount));
+    if (rounded <= 0) {
+      return;
+    }
+
+    if (this.damageTextEffects.length >= MAX_DAMAGE_TEXT_EFFECTS) {
+      this.damageTextEffects.shift();
+    }
+
+    this.damageTextEffects.push({
+      x,
+      y,
+      value: rounded,
+      elapsed: 0,
+      lifetime: DAMAGE_TEXT_LIFETIME_SECONDS,
+      color,
+    });
+  }
+
+  private spawnDeathDust(x: number, y: number, intensity = 1) {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || intensity <= 0) {
+      return;
+    }
+
+    const puffs = Math.max(2, Math.min(4, Math.round(2 + intensity)));
+
+    for (let index = 0; index < puffs; index += 1) {
+      if (this.deathDustEffects.length >= MAX_DEATH_DUST_EFFECTS) {
+        this.deathDustEffects.shift();
+      }
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 4 + Math.random() * 12;
+
+      this.deathDustEffects.push({
+        x: x + (Math.random() * 2 - 1) * 1.8,
+        y: y + (Math.random() * 2 - 1) * 1.8,
+        driftX: Math.cos(angle) * speed,
+        driftY: Math.sin(angle) * speed,
+        radius: 1.8 + Math.random() * 2.2,
+        elapsed: 0,
+        lifetime: DEATH_DUST_LIFETIME_SECONDS + Math.random() * 0.12,
+      });
+    }
+  }
+
+  private triggerCameraShake(strength: number, durationSeconds: number) {
+    if (strength <= 0 || durationSeconds <= 0) {
+      return;
+    }
+
+    this.cameraShakeStrength = Math.max(this.cameraShakeStrength, strength);
+    this.cameraShakeSeconds = Math.max(this.cameraShakeSeconds, durationSeconds);
+  }
+
   private updateAttackEffects(deltaTime: number) {
     for (let index = this.spitterAttackEffects.length - 1; index >= 0; index -= 1) {
       const effect = this.spitterAttackEffects[index];
@@ -1195,13 +1522,74 @@ export class GameEngine {
         this.spitterAttackEffects.splice(index, 1);
       }
     }
+
+    for (let index = this.hitFlashEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.hitFlashEffects[index];
+
+      if (!effect) {
+        continue;
+      }
+
+      effect.elapsed += deltaTime;
+      if (effect.elapsed >= effect.lifetime) {
+        this.hitFlashEffects.splice(index, 1);
+      }
+    }
+
+    for (let index = this.damageTextEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.damageTextEffects[index];
+
+      if (!effect) {
+        continue;
+      }
+
+      effect.elapsed += deltaTime;
+      if (effect.elapsed >= effect.lifetime) {
+        this.damageTextEffects.splice(index, 1);
+      }
+    }
+
+    for (let index = this.deathDustEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.deathDustEffects[index];
+
+      if (!effect) {
+        continue;
+      }
+
+      effect.elapsed += deltaTime;
+      effect.x += effect.driftX * deltaTime;
+      effect.y += effect.driftY * deltaTime;
+      effect.driftX *= 0.92;
+      effect.driftY *= 0.92;
+
+      if (effect.elapsed >= effect.lifetime) {
+        this.deathDustEffects.splice(index, 1);
+      }
+    }
+
+    for (let index = this.slashEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.slashEffects[index];
+
+      if (!effect) {
+        continue;
+      }
+
+      effect.elapsed += deltaTime;
+      if (effect.elapsed >= effect.lifetime) {
+        this.slashEffects.splice(index, 1);
+      }
+    }
+
+    if (this.cameraShakeSeconds > 0) {
+      this.cameraShakeSeconds = Math.max(0, this.cameraShakeSeconds - deltaTime);
+      this.cameraShakeStrength *= 0.9;
+      if (this.cameraShakeSeconds <= 0) {
+        this.cameraShakeStrength = 0;
+      }
+    }
   }
 
   private drawAttackEffects() {
-    if (this.spitterAttackEffects.length === 0) {
-      return;
-    }
-
     for (const effect of this.spitterAttackEffects) {
       const progress = Math.min(1, effect.elapsed / Math.max(0.001, effect.lifetime));
       const alpha = 1 - progress;
@@ -1217,6 +1605,81 @@ export class GameEngine {
       this.context.fillStyle = `rgba(204, 255, 159, ${Math.max(0.12, alpha).toFixed(2)})`;
       this.context.arc(effect.toX, effect.toY, 1.6 + progress * 1.8, 0, Math.PI * 2);
       this.context.fill();
+    }
+
+    for (const effect of this.slashEffects) {
+      const progress = Math.min(1, effect.elapsed / Math.max(0.001, effect.lifetime));
+      const alpha = 1 - progress;
+      const dx = effect.toX - effect.fromX;
+      const dy = effect.toY - effect.fromY;
+      const angle = Math.atan2(dy, dx);
+      const length = Math.hypot(dx, dy);
+      const centerX = (effect.fromX + effect.toX) * 0.5;
+      const centerY = (effect.fromY + effect.toY) * 0.5;
+      const radiusX = length * (0.65 + progress * 0.18);
+      const radiusY = Math.max(1.2, effect.width * (1.3 - progress * 0.25));
+
+      this.context.save();
+      this.context.translate(centerX, centerY);
+      this.context.rotate(angle);
+
+      this.context.beginPath();
+      this.context.fillStyle = `rgba(${effect.color}, ${(alpha * 0.42).toFixed(2)})`;
+      this.context.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+      this.context.fill();
+
+      this.context.beginPath();
+      this.context.fillStyle = `rgba(${effect.color}, ${(alpha * 0.28).toFixed(2)})`;
+      this.context.ellipse(0, 0, radiusX * 0.68, Math.max(0.8, radiusY * 0.52), 0, 0, Math.PI * 2);
+      this.context.fill();
+
+      this.context.beginPath();
+      this.context.strokeStyle = `rgba(${effect.color}, ${(alpha * 0.32).toFixed(2)})`;
+      this.context.lineWidth = Math.max(0.7, radiusY * 0.7);
+      this.context.ellipse(0, 0, radiusX * 0.94, Math.max(0.9, radiusY * 0.9), 0, 0, Math.PI * 2);
+      this.context.stroke();
+
+      this.context.restore();
+    }
+
+    for (const effect of this.hitFlashEffects) {
+      const progress = Math.min(1, effect.elapsed / Math.max(0.001, effect.lifetime));
+      const alpha = (1 - progress) * 0.9;
+      const radius = effect.radius * (0.7 + progress * 0.9);
+
+      this.context.beginPath();
+      this.context.fillStyle = `rgba(${effect.color}, ${alpha.toFixed(2)})`;
+      this.context.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
+      this.context.fill();
+    }
+
+    for (const effect of this.deathDustEffects) {
+      const progress = Math.min(1, effect.elapsed / Math.max(0.001, effect.lifetime));
+      const alpha = (1 - progress) * 0.48;
+      const radius = effect.radius * (0.8 + progress * 1.3);
+
+      this.context.beginPath();
+      this.context.fillStyle = `rgba(154, 136, 118, ${alpha.toFixed(2)})`;
+      this.context.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
+      this.context.fill();
+    }
+
+    this.context.textAlign = 'center';
+    this.context.textBaseline = 'middle';
+    this.context.font = '700 11px "Trebuchet MS", sans-serif';
+
+    for (const effect of this.damageTextEffects) {
+      const progress = Math.min(1, effect.elapsed / Math.max(0.001, effect.lifetime));
+      const alpha = 1 - progress;
+      const y = effect.y - 10 * progress;
+
+      this.context.strokeStyle = `rgba(24, 20, 15, ${(alpha * 0.85).toFixed(2)})`;
+      this.context.lineWidth = 2;
+      this.context.strokeText(`${effect.value}`, effect.x, y);
+      this.context.fillStyle = effect.color;
+      this.context.globalAlpha = Math.max(0, alpha);
+      this.context.fillText(`${effect.value}`, effect.x, y);
+      this.context.globalAlpha = 1;
     }
   }
 
@@ -1336,6 +1799,7 @@ export class GameEngine {
       sourceNest.notifySpawnDestroyed();
     }
 
+    this.spawnDeathDust(enemyAnt.position.x, enemyAnt.position.y, 1.4);
     this.onFoodCollected?.(ENEMY_ANT_KILL_REWARD_FOOD);
   }
 
@@ -1533,6 +1997,11 @@ export class GameEngine {
       foodCapacity: 0,
       forageRadius: 0,
       populationCapacity: 0,
+      soldierDamage: 0,
+      soldierHealth: 0,
+      soldierSpeed: 0,
+      soldierTauntRange: 0,
+      soldierAttackRange: 0,
     };
     const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
     const currentPopulation = this.getPopulationUsage ? this.getPopulationUsage() : this.getPopulationCount();

@@ -53,10 +53,14 @@ export class PlayerSoldier implements GameEntity {
   private x: number;
   private y: number;
   private hp: number;
-  private readonly hpMax: number;
+  private hpMax: number;
+  private readonly baseHpMax: number;
   private readonly rawDamage: number;
   private readonly rawSpeed: number;
   private readonly rawAttackRange: number;
+  private damageMultiplier = 1;
+  private attackRangeBonus = 0;
+  private tauntRadiusBonus = 0;
   private readonly baseAttackCooldownSeconds: number;
   private readonly populationCost: number;
   private readonly defendOrbitPhase: number;
@@ -73,6 +77,7 @@ export class PlayerSoldier implements GameEntity {
     const stats = computeStats(config.role, config.level ?? 1);
     this.hp = stats.hp;
     this.hpMax = stats.hp;
+    this.baseHpMax = stats.hp;
     this.rawDamage = stats.damage;
     this.rawSpeed = stats.speed;
     this.rawAttackRange = Math.max(5, stats.attackRange);
@@ -94,11 +99,12 @@ export class PlayerSoldier implements GameEntity {
   }
 
   get damage() {
-    return this.rawDamage;
+    return Math.max(1, Math.round(this.rawDamage * this.damageMultiplier));
   }
 
   get attackRange() {
-    return this.rawAttackRange;
+    const roleRangeBonus = this.role === AntRole.SPITTER ? this.attackRangeBonus : 0;
+    return Math.max(5, this.rawAttackRange + roleRangeBonus);
   }
 
   get popCost() {
@@ -110,13 +116,19 @@ export class PlayerSoldier implements GameEntity {
   }
 
   get tauntRadius() {
+    return this.getTauntRadius();
+  }
+
+  getTauntRadius(tauntRadiusBonus = this.tauntRadiusBonus) {
     if (!this.isGuardian) {
       return 0;
     }
 
-    return this.mode === SquadMode.DEFEND
+    const baseRadius = this.mode === SquadMode.DEFEND
       ? PLAYER_SOLDIER_TUNING.guardianTauntRadiusDefend
       : PLAYER_SOLDIER_TUNING.guardianTauntRadiusAssault;
+
+    return Math.max(0, baseRadius + Math.max(0, tauntRadiusBonus));
   }
 
   canAttack() {
@@ -154,6 +166,13 @@ export class PlayerSoldier implements GameEntity {
       return;
     }
 
+    this.applyHealthMultiplier(world.soldierHealthMultiplier);
+    this.damageMultiplier = Math.max(1, world.soldierDamageMultiplier);
+    this.attackRangeBonus = this.role === AntRole.SPITTER ? Math.max(0, world.soldierAttackRangeBonus) : 0;
+    this.tauntRadiusBonus = Math.max(0, world.soldierTauntRadiusBonus);
+
+    const movementMultiplier = world.antSpeedMultiplier * Math.max(0.1, world.soldierSpeedMultiplier);
+
     this.attackCooldownSeconds = Math.max(0, this.attackCooldownSeconds - deltaTime);
 
     if (this.mode === SquadMode.DEFEND) {
@@ -168,20 +187,20 @@ export class PlayerSoldier implements GameEntity {
         (!this.isGuardian || Math.hypot(threat.x - world.center.x, threat.y - world.center.y) <= guardianHoldRadius);
 
       if (canGuardianIntercept && threat) {
-        this.moveToThreatWithRoleBehavior(threat.x, threat.y, deltaTime, world.antSpeedMultiplier);
+        this.moveToThreatWithRoleBehavior(threat.x, threat.y, deltaTime, movementMultiplier);
       } else {
         const ringRadius = Math.max(world.nestRadius + 18, world.nestRadius + 28 + this.defendRadiusOffset);
         const angle = this.defendOrbitPhase + world.time * 0.22;
         const targetX = world.center.x + Math.cos(angle) * ringRadius;
         const targetY = world.center.y + Math.sin(angle) * ringRadius;
-        this.moveTowards(targetX, targetY, deltaTime, world.antSpeedMultiplier);
+        this.moveTowards(targetX, targetY, deltaTime, movementMultiplier);
       }
 
       if (this.isGuardian) {
         const distanceToNest = this.distanceTo(world.center.x, world.center.y);
 
         if (distanceToNest > guardianHoldRadius) {
-          this.moveTowards(world.center.x, world.center.y, deltaTime, world.antSpeedMultiplier);
+          this.moveTowards(world.center.x, world.center.y, deltaTime, movementMultiplier);
         }
       }
     } else if ((world.enemyNests?.length ?? 0) === 0) {
@@ -189,17 +208,17 @@ export class PlayerSoldier implements GameEntity {
       const angle = this.defendOrbitPhase + world.time * 0.22;
       const targetX = world.center.x + Math.cos(angle) * ringRadius;
       const targetY = world.center.y + Math.sin(angle) * ringRadius;
-      this.moveTowards(targetX, targetY, deltaTime, world.antSpeedMultiplier);
+      this.moveTowards(targetX, targetY, deltaTime, movementMultiplier);
     } else {
       const nearbyThreat = this.findNearestThreatNearSelf(world.enemyAnts ?? [], ASSAULT_ENGAGE_RADIUS);
 
       if (nearbyThreat) {
-        this.moveToThreatWithRoleBehavior(nearbyThreat.x, nearbyThreat.y, deltaTime, world.antSpeedMultiplier);
+        this.moveToThreatWithRoleBehavior(nearbyThreat.x, nearbyThreat.y, deltaTime, movementMultiplier);
       } else {
         const nearestNest = this.findNearestNest(world.enemyNests ?? []);
 
         if (nearestNest) {
-          this.moveToNestWithRoleBehavior(nearestNest.x, nearestNest.y, nearestNest.radius, deltaTime, world.antSpeedMultiplier);
+          this.moveToNestWithRoleBehavior(nearestNest.x, nearestNest.y, nearestNest.radius, deltaTime, movementMultiplier);
         }
       }
     }
@@ -220,6 +239,20 @@ export class PlayerSoldier implements GameEntity {
     }
 
     context.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
+  }
+
+  private applyHealthMultiplier(multiplier: number) {
+    const nextMultiplier = Math.max(1, multiplier);
+
+    if (Math.abs(nextMultiplier - this.hpMax / this.baseHpMax) < 0.0001) {
+      return;
+    }
+
+    const previousHpMax = Math.max(1, this.hpMax);
+    const healthRatio = this.hp / previousHpMax;
+
+    this.hpMax = Math.max(1, Math.round(this.baseHpMax * nextMultiplier));
+    this.hp = Math.max(0, Math.min(this.hpMax, this.hpMax * healthRatio));
   }
 
   private moveTowards(targetX: number, targetY: number, deltaTime: number, speedMultiplier = 1) {

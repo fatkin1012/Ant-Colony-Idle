@@ -158,6 +158,25 @@ body {
   margin-top: 1rem;
 }
 
+.game-over-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.game-over-modal {
+  width: min(24rem, 100%);
+  text-align: center;
+}
+
+.game-over-modal .settings-modal__footer {
+  justify-content: center;
+}
+
 .settings-close {
   min-height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -227,7 +246,7 @@ body {
 
 .overlay-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.45rem;
 }
 

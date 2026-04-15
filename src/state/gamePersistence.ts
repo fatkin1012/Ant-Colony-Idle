@@ -32,6 +32,16 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   const nestRecovery = typeof rawNestRecovery === 'number' ? rawNestRecovery : 0;
   const rawPopulationCapacity = (state.upgradeLevels as unknown as Record<string, unknown>).populationCapacity;
   const populationCapacity = typeof rawPopulationCapacity === 'number' ? rawPopulationCapacity : 0;
+  const rawSoldierDamage = (state.upgradeLevels as unknown as Record<string, unknown>).soldierDamage;
+  const soldierDamage = typeof rawSoldierDamage === 'number' ? rawSoldierDamage : 0;
+  const rawSoldierHealth = (state.upgradeLevels as unknown as Record<string, unknown>).soldierHealth;
+  const soldierHealth = typeof rawSoldierHealth === 'number' ? rawSoldierHealth : 0;
+  const rawSoldierSpeed = (state.upgradeLevels as unknown as Record<string, unknown>).soldierSpeed;
+  const soldierSpeed = typeof rawSoldierSpeed === 'number' ? rawSoldierSpeed : 0;
+  const rawSoldierTauntRange = (state.upgradeLevels as unknown as Record<string, unknown>).soldierTauntRange;
+  const soldierTauntRange = typeof rawSoldierTauntRange === 'number' ? rawSoldierTauntRange : 0;
+  const rawSoldierAttackRange = (state.upgradeLevels as unknown as Record<string, unknown>).soldierAttackRange;
+  const soldierAttackRange = typeof rawSoldierAttackRange === 'number' ? rawSoldierAttackRange : 0;
 
   return {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
@@ -46,6 +56,11 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       foodCapacity: Math.max(0, Math.floor(state.upgradeLevels.foodCapacity)),
       forageRadius: Math.max(0, Math.floor(state.upgradeLevels.forageRadius)),
       populationCapacity: Math.max(0, Math.floor(populationCapacity)),
+      soldierDamage: Math.max(0, Math.floor(soldierDamage)),
+      soldierHealth: Math.max(0, Math.floor(soldierHealth)),
+      soldierSpeed: Math.max(0, Math.floor(soldierSpeed)),
+      soldierTauntRange: Math.max(0, Math.floor(soldierTauntRange)),
+      soldierAttackRange: Math.max(0, Math.floor(soldierAttackRange)),
     },
     engineState: isValidEngineState(state.engineState) ? state.engineState : null,
   };
@@ -92,6 +107,11 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
     (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined') &&
+    (typeof upgradeLevels.soldierDamage === 'number' || typeof upgradeLevels.soldierDamage === 'undefined') &&
+    (typeof upgradeLevels.soldierHealth === 'number' || typeof upgradeLevels.soldierHealth === 'undefined') &&
+    (typeof upgradeLevels.soldierSpeed === 'number' || typeof upgradeLevels.soldierSpeed === 'undefined') &&
+    (typeof upgradeLevels.soldierTauntRange === 'number' || typeof upgradeLevels.soldierTauntRange === 'undefined') &&
+    (typeof upgradeLevels.soldierAttackRange === 'number' || typeof upgradeLevels.soldierAttackRange === 'undefined') &&
     (typeof candidate.engineState === 'undefined' || isValidEngineState(candidate.engineState))
   );
 }

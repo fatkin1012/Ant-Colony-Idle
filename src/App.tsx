@@ -10,7 +10,7 @@ import {
   savePersistedGameStateOnPageHide,
   type GameLanguage,
 } from './state/gamePersistence';
-import { getPersistedGameSnapshot, useGameStore } from './state/gameStore';
+import { getPersistedGameSnapshot, INITIAL_FOOD_AMOUNT, useGameStore } from './state/gameStore';
 
 const AUTO_SAVE_INTERVAL_MS = 4000;
 
@@ -22,6 +22,11 @@ const EMPTY_UPGRADE_LEVELS = {
   foodCapacity: 0,
   forageRadius: 0,
   populationCapacity: 0,
+  soldierDamage: 0,
+  soldierHealth: 0,
+  soldierSpeed: 0,
+  soldierTauntRange: 0,
+  soldierAttackRange: 0,
 } as const;
 
 const TRANSLATIONS: Record<
@@ -38,11 +43,15 @@ const TRANSLATIONS: Record<
     resetAction: string;
     close: string;
     resetConfirm: string;
+    gameOverTitle: string;
+    gameOverHint: string;
+    gameOverRestart: string;
     summaryColony: string;
     summaryFood: string;
     summaryNestHealth: string;
     summaryNextWave: string;
     upgradesTab: string;
+    soldiersTab: string;
     battleTab: string;
     showMenu: string;
     hideMenu: string;
@@ -60,11 +69,15 @@ const TRANSLATIONS: Record<
     resetAction: '重置進度',
     close: '關閉',
     resetConfirm: '確定要重置進度嗎？這個動作無法還原。',
+    gameOverTitle: '蟻巢已被摧毀',
+    gameOverHint: '你的蟻巢耐久歸零，這一局已結束。',
+    gameOverRestart: '重開一局',
     summaryColony: '蟻群',
     summaryFood: '食物',
     summaryNestHealth: '巢穴耐久',
     summaryNextWave: '下一波敵人',
     upgradesTab: '升級',
+    soldiersTab: '兵種強化',
     battleTab: '排兵佈陣',
     showMenu: '顯示選單',
     hideMenu: '隱藏選單',
@@ -81,11 +94,15 @@ const TRANSLATIONS: Record<
     resetAction: 'Reset Progress',
     close: 'Close',
     resetConfirm: 'Reset progress now? This cannot be undone.',
+    gameOverTitle: 'Your Nest Has Fallen',
+    gameOverHint: 'Nest health reached zero. This run is over.',
+    gameOverRestart: 'Start New Run',
     summaryColony: 'Colony',
     summaryFood: 'Food',
     summaryNestHealth: 'Nest Health',
     summaryNextWave: 'Next Enemy Wave',
     upgradesTab: 'Upgrades',
+    soldiersTab: 'Soldier Upgrades',
     battleTab: 'Battle Planner',
     showMenu: 'Show Menu',
     hideMenu: 'Hide Menu',
@@ -96,8 +113,11 @@ export default function App() {
   const [language, setLanguage] = useState<GameLanguage>(() => loadGameLanguage());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPersistenceReady, setIsPersistenceReady] = useState(false);
+  const [gameSessionKey, setGameSessionKey] = useState(0);
+  const nestHealth = useGameStore((state) => state.nestHealth);
 
   const text = TRANSLATIONS[language];
+  const isGameOver = nestHealth <= 0;
 
   useEffect(() => {
     let disposed = false;
@@ -202,21 +222,26 @@ export default function App() {
     saveGameLanguage(nextLanguage);
   };
 
-  const handleResetProgress = () => {
-    if (!window.confirm(text.resetConfirm)) {
-      return;
-    }
-
+  const resetToNewRun = () => {
     clearPersistedGameState();
     useGameStore.getState().hydrateFromPersistence({
       colonySize: 12,
-      foodAmount: 500,
+      foodAmount: INITIAL_FOOD_AMOUNT,
       nestHealth: 100,
       nextEnemyWaveInSeconds: 0,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,
       engineState: null,
     });
+    setGameSessionKey((value) => value + 1);
     setIsSettingsOpen(false);
+  };
+
+  const handleResetProgress = () => {
+    if (!window.confirm(text.resetConfirm)) {
+      return;
+    }
+
+    resetToNewRun();
   };
 
   return (
@@ -243,7 +268,7 @@ export default function App() {
         </div>
       </header>
       <main className="game-stage">
-        {isPersistenceReady ? <GameCanvas /> : null}
+        {isPersistenceReady ? <GameCanvas key={gameSessionKey} /> : null}
         <UpgradeOverlay
           language={language}
           summaryColonyLabel={text.summaryColony}
@@ -251,6 +276,7 @@ export default function App() {
           summaryNestHealthLabel={text.summaryNestHealth}
           summaryNextWaveLabel={text.summaryNextWave}
           upgradesTabLabel={text.upgradesTab}
+          soldiersTabLabel={text.soldiersTab}
           battleTabLabel={text.battleTab}
           showMenuLabel={text.showMenu}
           hideMenuLabel={text.hideMenu}
@@ -291,6 +317,20 @@ export default function App() {
             <div className="settings-modal__footer">
               <button type="button" className="settings-close" onClick={() => setIsSettingsOpen(false)}>
                 {text.close}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isGameOver ? (
+        <div className="game-over-backdrop" role="presentation">
+          <section className="settings-modal game-over-modal" role="dialog" aria-modal="true" aria-label={text.gameOverTitle}>
+            <h2>{text.gameOverTitle}</h2>
+            <p className="settings-reset__hint">{text.gameOverHint}</p>
+            <div className="settings-modal__footer">
+              <button type="button" className="settings-reset__button" onClick={resetToNewRun}>
+                {text.gameOverRestart}
               </button>
             </div>
           </section>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { useGameStore } from '../state/gameStore';
+import { useGameStore, type UpgradeKey } from '../state/gameStore';
 import type { GameLanguage } from '../state/gamePersistence';
 import { BattlePlannerPanel } from './BattlePlannerPanel';
 import {
@@ -14,10 +14,20 @@ import {
   MAX_FOOD_ON_FIELD,
   NEST_RECOVERY_PER_MINUTE_PER_LEVEL,
   MAX_SPAWN_REDUCTION,
+  MAX_SOLDIER_ATTACK_RANGE_BONUS,
+  MAX_SOLDIER_DAMAGE_MULTIPLIER,
+  MAX_SOLDIER_HEALTH_MULTIPLIER,
+  MAX_SOLDIER_SPEED_MULTIPLIER,
+  MAX_SOLDIER_TAUNT_RADIUS_BONUS,
   MAX_UPGRADE_LEVEL,
   BASE_POPULATION_CAPACITY,
   POPULATION_CAPACITY_PER_LEVEL,
   MIN_SPAWN_INTERVAL_SECONDS,
+  SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
+  SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
+  SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
+  SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
+  SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
   SPAWN_REDUCTION_PER_LEVEL,
 } from '../game/upgradeBalances';
 
@@ -96,14 +106,7 @@ function SummaryIcon({ kind, label }: { kind: SummaryIconKind; label: string }) 
 
 function formatEffect(
   language: GameLanguage,
-  upgradeKey:
-    | 'queenSpawnRate'
-    | 'carryCapacity'
-    | 'antSpeed'
-    | 'nestRecovery'
-    | 'foodCapacity'
-    | 'forageRadius'
-    | 'populationCapacity',
+  upgradeKey: UpgradeKey,
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -150,19 +153,42 @@ function formatEffect(
       : `Next level: population cap +${POPULATION_CAPACITY_PER_LEVEL}`;
   }
 
+  if (upgradeKey === 'soldierDamage') {
+    return isZh
+      ? `下一級：兵種攻擊 +${(SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`
+      : `Next level: soldier damage +${(SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`;
+  }
+
+  if (upgradeKey === 'soldierHealth') {
+    return isZh
+      ? `下一級：兵種血量 +${(SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`
+      : `Next level: soldier health +${(SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`;
+  }
+
+  if (upgradeKey === 'soldierSpeed') {
+    return isZh
+      ? `下一級：兵種速度 +${(SOLDIER_SPEED_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`
+      : `Next level: soldier speed +${(SOLDIER_SPEED_MULTIPLIER_PER_LEVEL * 100).toFixed(1)}%`;
+  }
+
+  if (upgradeKey === 'soldierTauntRange') {
+    return isZh
+      ? `下一級：嘲諷範圍 +${SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL.toFixed(0)}`
+      : `Next level: taunt radius +${SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL.toFixed(0)}`;
+  }
+
+  if (upgradeKey === 'soldierAttackRange') {
+    return isZh
+      ? `下一級：酸液兵攻擊距離 +${SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL.toFixed(1)}`
+      : `Next level: spitter attack range +${SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL.toFixed(1)}`;
+  }
+
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
 function formatCurrentValue(
   language: GameLanguage,
-  upgradeKey:
-    | 'queenSpawnRate'
-    | 'carryCapacity'
-    | 'antSpeed'
-    | 'nestRecovery'
-    | 'foodCapacity'
-    | 'forageRadius'
-    | 'populationCapacity',
+  upgradeKey: UpgradeKey,
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -210,15 +236,37 @@ function formatCurrentValue(
     return isZh ? `目前：人口上限 ${cap}` : `Current: population cap ${cap}`;
   }
 
+  if (upgradeKey === 'soldierDamage') {
+    const multiplier = Math.min(MAX_SOLDIER_DAMAGE_MULTIPLIER, 1 + Math.max(0, level) * SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL);
+    return isZh ? `目前：兵種攻擊 x${multiplier.toFixed(2)}` : `Current: x${multiplier.toFixed(2)} soldier damage`;
+  }
+
+  if (upgradeKey === 'soldierHealth') {
+    const multiplier = Math.min(MAX_SOLDIER_HEALTH_MULTIPLIER, 1 + Math.max(0, level) * SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL);
+    return isZh ? `目前：兵種血量 x${multiplier.toFixed(2)}` : `Current: x${multiplier.toFixed(2)} soldier health`;
+  }
+
+  if (upgradeKey === 'soldierSpeed') {
+    const multiplier = Math.min(MAX_SOLDIER_SPEED_MULTIPLIER, 1 + Math.max(0, level) * SOLDIER_SPEED_MULTIPLIER_PER_LEVEL);
+    return isZh ? `目前：兵種速度 x${multiplier.toFixed(2)}` : `Current: x${multiplier.toFixed(2)} soldier speed`;
+  }
+
+  if (upgradeKey === 'soldierTauntRange') {
+    const bonus = Math.min(MAX_SOLDIER_TAUNT_RADIUS_BONUS, Math.max(0, level) * SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL);
+    return isZh ? `目前：守衛嘲諷範圍 +${bonus.toFixed(0)}` : `Current: +${bonus.toFixed(0)} guardian taunt radius`;
+  }
+
+  if (upgradeKey === 'soldierAttackRange') {
+    const bonus = Math.min(MAX_SOLDIER_ATTACK_RANGE_BONUS, Math.max(0, level) * SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL);
+    return isZh ? `目前：酸液兵攻擊距離 +${bonus.toFixed(1)}` : `Current: +${bonus.toFixed(1)} spitter range`;
+  }
+
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
 const UPGRADE_CARD_TEXT: Record<
   GameLanguage,
-  Record<
-    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
-    { label: string; title: string }
-  >
+  Record<UpgradeKey, { label: string; title: string }>
 > = {
   'zh-TW': {
     queenSpawnRate: { label: '蟻后生產', title: '更快孵化螞蟻' },
@@ -228,6 +276,11 @@ const UPGRADE_CARD_TEXT: Record<
     foodCapacity: { label: '食物容量', title: '地面可存在更多食物' },
     forageRadius: { label: '覓食範圍', title: '更遠距離偵測食物' },
     populationCapacity: { label: '人口容量', title: '提高工蟻與兵蟻總人口上限' },
+    soldierDamage: { label: '兵種攻擊', title: '提升兵蟻輸出傷害' },
+    soldierHealth: { label: '兵種血量', title: '提高兵蟻耐久上限' },
+    soldierSpeed: { label: '兵種速度', title: '加快兵蟻移動效率' },
+    soldierTauntRange: { label: '嘲諷範圍', title: '守衛吸引敵人更遠距離' },
+    soldierAttackRange: { label: '攻擊距離', title: '酸液兵可在更遠處交戰' },
   },
   en: {
     queenSpawnRate: { label: 'Queen Spawn Rate', title: 'Faster Ant Production' },
@@ -237,46 +290,31 @@ const UPGRADE_CARD_TEXT: Record<
     foodCapacity: { label: 'Food Capacity', title: 'More Food On The Ground' },
     forageRadius: { label: 'Forage Radius', title: 'Stronger Food Detection' },
     populationCapacity: { label: 'Population Capacity', title: 'Increase Total Worker + Soldier Cap' },
+    soldierDamage: { label: 'Soldier Damage', title: 'Increase Unit Damage Output' },
+    soldierHealth: { label: 'Soldier Health', title: 'Increase Unit HP Pool' },
+    soldierSpeed: { label: 'Soldier Speed', title: 'Faster Unit Movement' },
+    soldierTauntRange: { label: 'Taunt Radius', title: 'Guardians Pull Enemies From Farther Away' },
+    soldierAttackRange: { label: 'Attack Range', title: 'Spitters Engage From Longer Distance' },
   },
 };
 
-const UPGRADE_CARDS = [
-  {
-    key: 'queenSpawnRate' as const,
-    label: 'Queen Spawn Rate',
-    title: 'Faster Ant Production',
-  },
-  {
-    key: 'carryCapacity' as const,
-    label: 'Carry Capacity',
-    title: 'More Food Per Trip',
-  },
-  {
-    key: 'antSpeed' as const,
-    label: 'Ant Speed',
-    title: 'Quicker Search Runs',
-  },
-  {
-    key: 'nestRecovery' as const,
-    label: 'Nest Recovery',
-    title: 'Restore Nest Health Over Time',
-  },
-  {
-    key: 'foodCapacity' as const,
-    label: 'Food Capacity',
-    title: 'More Food On The Ground',
-  },
-  {
-    key: 'forageRadius' as const,
-    label: 'Forage Radius',
-    title: 'Stronger Food Detection',
-  },
-  {
-    key: 'populationCapacity' as const,
-    label: 'Population Capacity',
-    title: 'Increase Total Unit Cap',
-  },
-] as const;
+const COLONY_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
+  { key: 'queenSpawnRate' },
+  { key: 'carryCapacity' },
+  { key: 'antSpeed' },
+  { key: 'nestRecovery' },
+  { key: 'foodCapacity' },
+  { key: 'forageRadius' },
+  { key: 'populationCapacity' },
+];
+
+const SOLDIER_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
+  { key: 'soldierDamage' },
+  { key: 'soldierHealth' },
+  { key: 'soldierSpeed' },
+  { key: 'soldierTauntRange' },
+  { key: 'soldierAttackRange' },
+];
 
 interface UpgradeOverlayProps {
   language: GameLanguage;
@@ -285,6 +323,7 @@ interface UpgradeOverlayProps {
   summaryNestHealthLabel: string;
   summaryNextWaveLabel: string;
   upgradesTabLabel: string;
+  soldiersTabLabel: string;
   battleTabLabel: string;
   showMenuLabel: string;
   hideMenuLabel: string;
@@ -297,12 +336,13 @@ export function UpgradeOverlay({
   summaryNestHealthLabel,
   summaryNextWaveLabel,
   upgradesTabLabel,
+  soldiersTabLabel,
   battleTabLabel,
   showMenuLabel,
   hideMenuLabel,
 }: UpgradeOverlayProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'upgrades' | 'battle'>('upgrades');
+  const [activeTab, setActiveTab] = useState<'upgrades' | 'soldiers' | 'battle'>('upgrades');
   const [now, setNow] = useState(() => Date.now());
   const panelRef = useRef<HTMLElement | null>(null);
   const panelPositionRef = useRef({ x: 0, y: 0 });
@@ -539,6 +579,15 @@ export function UpgradeOverlay({
               <button
                 type="button"
                 role="tab"
+                aria-selected={activeTab === 'soldiers'}
+                className={`overlay-tabs__button${activeTab === 'soldiers' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('soldiers')}
+              >
+                {soldiersTabLabel}
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={activeTab === 'battle'}
                 className={`overlay-tabs__button${activeTab === 'battle' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('battle')}
@@ -548,7 +597,45 @@ export function UpgradeOverlay({
             </div>
 
             <div hidden={activeTab !== 'upgrades'} role="tabpanel">
-              {UPGRADE_CARDS.map((upgradeCard) => {
+              {COLONY_UPGRADE_CARDS.map((upgradeCard) => {
+                const level = upgradeLevels[upgradeCard.key];
+                const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
+                const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
+                const canAfford = foodAmount >= cost;
+                const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
+
+                return (
+                  <section className="panel upgrade-card" key={upgradeCard.key}>
+                    <div className="upgrade-card__header">
+                      <div>
+                        <p className="panel-label">{cardText.label}</p>
+                        <h2>{cardText.title}</h2>
+                      </div>
+                      <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
+                    </div>
+                    <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
+                    <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
+                    <button
+                      type="button"
+                      className="upgrade-button"
+                      onClick={() => purchaseUpgrade(upgradeCard.key)}
+                      disabled={!canAfford || isMaxLevel}
+                    >
+                      {isMaxLevel
+                        ? isZh
+                          ? '已達最高等級'
+                          : 'Max Level Reached'
+                        : isZh
+                          ? `花費 ${cost} 食物升級`
+                          : `Buy for ${cost} food`}
+                    </button>
+                  </section>
+                );
+              })}
+            </div>
+
+            <div hidden={activeTab !== 'soldiers'} role="tabpanel">
+              {SOLDIER_UPGRADE_CARDS.map((upgradeCard) => {
                 const level = upgradeLevels[upgradeCard.key];
                 const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
                 const isMaxLevel = level >= MAX_UPGRADE_LEVEL;

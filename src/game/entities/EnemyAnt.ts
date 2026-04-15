@@ -132,6 +132,12 @@ export class EnemyAnt implements GameEntity {
       return;
     }
 
+    if (this.moveTowardsNearbyPlayerUnit(world, deltaTime)) {
+      this.x = clamp(this.x, 0, Math.max(0, world.width - 2));
+      this.y = clamp(this.y, 0, Math.max(0, world.height - 2));
+      return;
+    }
+
     if (this.tactic === EnemySquadTactic.HARASS) {
       if (this.role === EnemyAntRole.RUNNER) {
         this.orbitNestAsRunner(world, deltaTime);
@@ -249,6 +255,37 @@ export class EnemyAnt implements GameEntity {
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearest = guardian;
+      }
+    }
+
+    if (!nearest) {
+      return false;
+    }
+
+    this.moveTowards(nearest.x, nearest.y, deltaTime);
+    return true;
+  }
+
+  private moveTowardsNearbyPlayerUnit(world: GameWorld, deltaTime: number) {
+    const playerUnits = world.playerUnits ?? [];
+
+    if (playerUnits.length === 0) {
+      return false;
+    }
+
+    const baseAggroRadius = this.role === EnemyAntRole.RUNNER ? 34 : this.role === EnemyAntRole.SPITTER ? 44 : 40;
+    const aggroRadius = Math.max(baseAggroRadius, this.rawAttackRange + 18);
+    let nearest: { x: number; y: number; distance: number } | null = null;
+
+    for (const unit of playerUnits) {
+      const distance = Math.hypot(unit.x - this.x, unit.y - this.y);
+
+      if (distance > aggroRadius) {
+        continue;
+      }
+
+      if (nearest === null || distance < nearest.distance) {
+        nearest = { x: unit.x, y: unit.y, distance };
       }
     }
 
