@@ -225,6 +225,29 @@ body {
   scrollbar-gutter: stable;
 }
 
+.overlay-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.overlay-tabs__button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 11px;
+  background: rgba(32, 28, 21, 0.9);
+  color: rgba(243, 240, 232, 0.84);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.overlay-tabs__button.is-active {
+  background: rgba(119, 97, 58, 0.78);
+  color: #fff6df;
+  border-color: rgba(227, 201, 149, 0.5);
+}
+
 .panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
@@ -236,7 +259,7 @@ body {
 .summary-panel {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   justify-content: space-between;
   gap: 0.8rem;
   padding: 0.9rem 1rem;
@@ -293,10 +316,14 @@ body {
   color: #f4eddc;
 }
 
+.panel-value--timer {
+  font-variant-numeric: tabular-nums;
+}
+
 .summary-panel__toggle {
   align-self: center;
-  width: 9.5rem;
-  min-width: 9.5rem;
+  width: 8.5rem;
+  min-width: 8.5rem;
   min-height: 36px;
   padding: 0.45rem 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -395,6 +422,15 @@ body {
   padding: 0.85rem;
   display: grid;
   gap: 0.7rem;
+}
+
+.battle-planner--embedded {
+  position: static;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  width: 100%;
+  padding: 0.9rem;
 }
 
 .battle-planner h2 {
@@ -593,7 +629,7 @@ body {
     padding: 0.9rem;
   }
 
-  .battle-planner {
+  .battle-planner:not(.battle-planner--embedded) {
     left: 1rem;
     right: 1rem;
     width: auto;
@@ -608,5 +644,17 @@ body {
 
   .battle-planner__actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .summary-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-panel__toggle {
+    width: 100%;
+    min-width: 0;
+    grid-column: 1 / -1;
   }
 }

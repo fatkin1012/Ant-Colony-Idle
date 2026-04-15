@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../state/gameStore';
 import type { GameLanguage } from '../state/gamePersistence';
+import { BattlePlannerPanel } from './BattlePlannerPanel';
 import {
   ANT_SPEED_MULTIPLIER_PER_LEVEL,
   BASE_ANT_FORAGE_RADIUS_FACTOR,
@@ -8,7 +9,6 @@ import {
   BASE_SPAWN_INTERVAL_SECONDS,
   FOOD_CAPACITY_PER_LEVEL,
   FORAGE_RADIUS_FACTOR_PER_LEVEL,
-  IDLE_COOLDOWN_REDUCTION_PER_LEVEL,
   MAX_ANT_FORAGE_RADIUS_FACTOR,
   MAX_ANT_SPEED_MULTIPLIER,
   MAX_FOOD_ON_FIELD,
@@ -16,7 +16,6 @@ import {
   MAX_UPGRADE_LEVEL,
   BASE_POPULATION_CAPACITY,
   POPULATION_CAPACITY_PER_LEVEL,
-  MIN_IDLE_COOLDOWN_MULTIPLIER,
   MIN_SPAWN_INTERVAL_SECONDS,
   SPAWN_REDUCTION_PER_LEVEL,
 } from '../game/upgradeBalances';
@@ -40,16 +39,17 @@ function formatSeconds(seconds: number) {
   return Number(seconds.toFixed(1)).toString();
 }
 
+function formatWaveCountdown(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  const totalWholeSeconds = Math.floor(safeSeconds);
+  const minutes = Math.floor(totalWholeSeconds / 60);
+  const remainingSeconds = totalWholeSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
 function formatEffect(
   language: GameLanguage,
-  upgradeKey:
-    | 'queenSpawnRate'
-    | 'carryCapacity'
-    | 'antSpeed'
-    | 'nestRecovery'
-    | 'foodCapacity'
-    | 'forageRadius'
-    | 'populationCapacity',
+  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -82,21 +82,12 @@ function formatEffect(
     return isZh ? `人口上限 +${level * POPULATION_CAPACITY_PER_LEVEL}` : `Population cap +${level * POPULATION_CAPACITY_PER_LEVEL}`;
   }
 
-  return isZh
-    ? `休息冷卻 -${Math.min(level * (IDLE_COOLDOWN_REDUCTION_PER_LEVEL * 100), (1 - MIN_IDLE_COOLDOWN_MULTIPLIER) * 100).toFixed(1)}%`
-    : `Idle cooldown -${Math.min(level * (IDLE_COOLDOWN_REDUCTION_PER_LEVEL * 100), (1 - MIN_IDLE_COOLDOWN_MULTIPLIER) * 100).toFixed(1)}%`;
+  throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
 function formatCurrentValue(
   language: GameLanguage,
-  upgradeKey:
-    | 'queenSpawnRate'
-    | 'carryCapacity'
-    | 'antSpeed'
-    | 'nestRecovery'
-    | 'foodCapacity'
-    | 'forageRadius'
-    | 'populationCapacity',
+  upgradeKey: 'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
   level: number,
 ) {
   const isZh = language === 'zh-TW';
@@ -139,18 +130,13 @@ function formatCurrentValue(
     return isZh ? `目前：人口上限 ${cap}` : `Current: population cap ${cap}`;
   }
 
-  const cooldownMultiplier = Math.max(MIN_IDLE_COOLDOWN_MULTIPLIER, 1 - level * IDLE_COOLDOWN_REDUCTION_PER_LEVEL);
-  const minIdleSeconds = 60 * cooldownMultiplier;
-  const maxIdleSeconds = 180 * cooldownMultiplier;
-  return isZh
-    ? `目前：休息 ${formatSeconds(minIdleSeconds)}-${formatSeconds(maxIdleSeconds)} 秒`
-    : `Current: ${formatSeconds(minIdleSeconds)}-${formatSeconds(maxIdleSeconds)}s idle`;
+  throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
 const UPGRADE_CARD_TEXT: Record<
   GameLanguage,
   Record<
-    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'nestRecovery' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
+    'queenSpawnRate' | 'carryCapacity' | 'antSpeed' | 'foodCapacity' | 'forageRadius' | 'populationCapacity',
     { label: string; title: string }
   >
 > = {
@@ -161,7 +147,6 @@ const UPGRADE_CARD_TEXT: Record<
     foodCapacity: { label: '食物容量', title: '地面可存在更多食物' },
     forageRadius: { label: '覓食範圍', title: '更遠距離偵測食物' },
     populationCapacity: { label: '人口容量', title: '提高工蟻與兵蟻總人口上限' },
-    nestRecovery: { label: '巢穴恢復', title: '回巢後更快再出發' },
   },
   en: {
     queenSpawnRate: { label: 'Queen Spawn Rate', title: 'Faster Ant Production' },
@@ -170,7 +155,6 @@ const UPGRADE_CARD_TEXT: Record<
     foodCapacity: { label: 'Food Capacity', title: 'More Food On The Ground' },
     forageRadius: { label: 'Forage Radius', title: 'Stronger Food Detection' },
     populationCapacity: { label: 'Population Capacity', title: 'Increase Total Worker + Soldier Cap' },
-    nestRecovery: { label: 'Nest Recovery', title: 'Shorter Rest After Delivery' },
   },
 };
 
@@ -205,11 +189,6 @@ const UPGRADE_CARDS = [
     label: 'Population Capacity',
     title: 'Increase Total Unit Cap',
   },
-  {
-    key: 'nestRecovery' as const,
-    label: 'Nest Recovery',
-    title: 'Shorter Rest After Delivery',
-  },
 ] as const;
 
 interface UpgradeOverlayProps {
@@ -217,6 +196,9 @@ interface UpgradeOverlayProps {
   summaryColonyLabel: string;
   summaryFoodLabel: string;
   summaryNestHealthLabel: string;
+  summaryNextWaveLabel: string;
+  upgradesTabLabel: string;
+  battleTabLabel: string;
   showMenuLabel: string;
   hideMenuLabel: string;
 }
@@ -226,10 +208,14 @@ export function UpgradeOverlay({
   summaryColonyLabel,
   summaryFoodLabel,
   summaryNestHealthLabel,
+  summaryNextWaveLabel,
+  upgradesTabLabel,
+  battleTabLabel,
   showMenuLabel,
   hideMenuLabel,
 }: UpgradeOverlayProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'upgrades' | 'battle'>('upgrades');
   const [now, setNow] = useState(() => Date.now());
   const panelRef = useRef<HTMLElement | null>(null);
   const panelPositionRef = useRef({ x: 0, y: 0 });
@@ -247,6 +233,7 @@ export function UpgradeOverlay({
   const colonySize = useGameStore((state) => state.colonySize);
   const foodAmount = useGameStore((state) => state.foodAmount);
   const nestHealth = useGameStore((state) => state.nestHealth);
+  const nextEnemyWaveInSeconds = useGameStore((state) => state.nextEnemyWaveInSeconds);
   const lastNestHitAt = useGameStore((state) => state.lastNestHitAt);
   const upgradeLevels = useGameStore((state) => state.upgradeLevels);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
@@ -435,6 +422,10 @@ export function UpgradeOverlay({
             <p className="panel-label">{summaryNestHealthLabel}</p>
             <strong className="panel-value">{Math.max(0, Math.floor(nestHealth))}%</strong>
           </div>
+          <div>
+            <p className="panel-label">{summaryNextWaveLabel}</p>
+            <strong className="panel-value panel-value--timer">{formatWaveCountdown(nextEnemyWaveInSeconds)}</strong>
+          </div>
           <button
             type="button"
             className="summary-panel__toggle"
@@ -448,35 +439,64 @@ export function UpgradeOverlay({
 
         {!isCollapsed ? (
           <div className="upgrade-scroll-area">
-            {UPGRADE_CARDS.map((upgradeCard) => {
-              const level = upgradeLevels[upgradeCard.key];
-              const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
-              const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
-              const canAfford = foodAmount >= cost;
-              const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
+            <div className="overlay-tabs" role="tablist" aria-label={isZh ? '選單分頁' : 'Menu tabs'}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'upgrades'}
+                className={`overlay-tabs__button${activeTab === 'upgrades' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('upgrades')}
+              >
+                {upgradesTabLabel}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'battle'}
+                className={`overlay-tabs__button${activeTab === 'battle' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('battle')}
+              >
+                {battleTabLabel}
+              </button>
+            </div>
 
-              return (
-                <section className="panel upgrade-card" key={upgradeCard.key}>
-                  <div className="upgrade-card__header">
-                    <div>
-                      <p className="panel-label">{cardText.label}</p>
-                      <h2>{cardText.title}</h2>
-                    </div>
-                    <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
-                  </div>
-                  <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
-                  <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
-                  <button
-                    type="button"
-                    className="upgrade-button"
-                    onClick={() => purchaseUpgrade(upgradeCard.key)}
-                    disabled={!canAfford || isMaxLevel}
-                  >
-                    {isMaxLevel ? (isZh ? '已達最高等級' : 'Max Level Reached') : isZh ? `花費 ${cost} 食物升級` : `Buy for ${cost} food`}
-                  </button>
-                </section>
-              );
-            })}
+            {activeTab === 'upgrades'
+              ? UPGRADE_CARDS.map((upgradeCard) => {
+                  const level = upgradeLevels[upgradeCard.key];
+                  const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
+                  const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
+                  const canAfford = foodAmount >= cost;
+                  const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
+
+                  return (
+                    <section className="panel upgrade-card" key={upgradeCard.key}>
+                      <div className="upgrade-card__header">
+                        <div>
+                          <p className="panel-label">{cardText.label}</p>
+                          <h2>{cardText.title}</h2>
+                        </div>
+                        <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
+                      </div>
+                      <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
+                      <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
+                      <button
+                        type="button"
+                        className="upgrade-button"
+                        onClick={() => purchaseUpgrade(upgradeCard.key)}
+                        disabled={!canAfford || isMaxLevel}
+                      >
+                        {isMaxLevel
+                          ? isZh
+                            ? '已達最高等級'
+                            : 'Max Level Reached'
+                          : isZh
+                            ? `花費 ${cost} 食物升級`
+                            : `Buy for ${cost} food`}
+                      </button>
+                    </section>
+                  );
+                })
+              : <BattlePlannerPanel language={language} embedded />}
           </div>
         ) : null}
       </div>

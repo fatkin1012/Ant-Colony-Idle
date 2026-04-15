@@ -3,13 +3,10 @@ import { BASE_POPULATION_CAPACITY, MAX_UPGRADE_LEVEL, POPULATION_CAPACITY_PER_LE
 import type { PersistedGameState } from './gamePersistence';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
-const DEV_FIXED_FOOD = import.meta.env.DEV ? 9999 : null;
-
 export type UpgradeKey =
   | 'queenSpawnRate'
   | 'carryCapacity'
   | 'antSpeed'
-  | 'nestRecovery'
   | 'foodCapacity'
   | 'forageRadius'
   | 'populationCapacity';
@@ -18,7 +15,6 @@ export interface UpgradeState {
   queenSpawnRate: number;
   carryCapacity: number;
   antSpeed: number;
-  nestRecovery: number;
   foodCapacity: number;
   forageRadius: number;
   populationCapacity: number;
@@ -35,6 +31,7 @@ interface GameState {
   colonySize: number;
   foodAmount: number;
   nestHealth: number;
+  nextEnemyWaveInSeconds: number;
   lastNestHitAt: number;
   battleDeployments: BattleDeployment[];
   upgradeLevels: UpgradeState;
@@ -43,6 +40,7 @@ interface GameState {
   incrementColonySize: (amount?: number) => void;
   loseColonySize: (amount?: number) => void;
   setNestHealth: (health: number) => void;
+  setNextEnemyWaveInSeconds: (seconds: number) => void;
   notifyNestHit: () => void;
   enqueueBattleDeployment: (deployment: Omit<BattleDeployment, 'id' | 'createdAt'>) => string;
   pullBattleDeployments: () => BattleDeployment[];
@@ -56,7 +54,6 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   queenSpawnRate: 25,
   carryCapacity: 25,
   antSpeed: 25,
-  nestRecovery: 25,
   foodCapacity: 30,
   forageRadius: 35,
   populationCapacity: 55,
@@ -74,15 +71,15 @@ function clampUpgradeLevel(level: number) {
 
 export const useGameStore = create<GameState>((set, get) => ({
   colonySize: 12,
-  foodAmount: DEV_FIXED_FOOD ?? 0,
+  foodAmount: 100,
   nestHealth: 100,
+  nextEnemyWaveInSeconds: 0,
   lastNestHitAt: 0,
   battleDeployments: [],
   upgradeLevels: {
     queenSpawnRate: 0,
     carryCapacity: 0,
     antSpeed: 0,
-    nestRecovery: 0,
     foodCapacity: 0,
     forageRadius: 0,
     populationCapacity: 0,
@@ -90,13 +87,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   hydrateFromPersistence: (state) => {
     set({
       colonySize: Math.max(0, Math.floor(state.colonySize)),
-      foodAmount: DEV_FIXED_FOOD ?? Math.max(0, Math.floor(state.foodAmount)),
+      foodAmount: Math.max(0, Math.floor(state.foodAmount)),
       nestHealth: Math.max(0, Math.floor(state.nestHealth)),
       upgradeLevels: {
         queenSpawnRate: clampUpgradeLevel(state.upgradeLevels.queenSpawnRate),
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
         antSpeed: clampUpgradeLevel(state.upgradeLevels.antSpeed),
-        nestRecovery: clampUpgradeLevel(state.upgradeLevels.nestRecovery),
         foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
         forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
         populationCapacity: clampUpgradeLevel(state.upgradeLevels.populationCapacity),
@@ -129,6 +125,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setNestHealth: (health) => {
     set({
       nestHealth: Math.max(0, Math.floor(health)),
+    });
+  },
+  setNextEnemyWaveInSeconds: (seconds) => {
+    set({
+      nextEnemyWaveInSeconds: Math.max(0, seconds),
     });
   },
   notifyNestHit: () => {
@@ -168,26 +169,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    if (DEV_FIXED_FOOD !== null) {
-      set({
-        foodAmount: DEV_FIXED_FOOD,
-      });
-      return;
-    }
-
     set((state) => ({
       foodAmount: state.foodAmount + amount,
     }));
   },
   spendFood: (amount) => {
     if (amount <= 0) {
-      return true;
-    }
-
-    if (DEV_FIXED_FOOD !== null) {
-      set({
-        foodAmount: DEV_FIXED_FOOD,
-      });
       return true;
     }
 

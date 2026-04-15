@@ -33,6 +33,9 @@ export function GameCanvas() {
       onNestDamaged: () => {
         useGameStore.getState().notifyNestHit();
       },
+      onNextEnemyWaveTimeChanged: (seconds) => {
+        useGameStore.getState().setNextEnemyWaveInSeconds(seconds);
+      },
       getNestHealth: () => useGameStore.getState().nestHealth,
       getPopulationUsage: () => useGameStore.getState().colonySize,
       consumeBattleDeployments: () => useGameStore.getState().pullBattleDeployments(),

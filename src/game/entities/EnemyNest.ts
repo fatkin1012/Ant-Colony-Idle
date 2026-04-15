@@ -1,4 +1,5 @@
 import {
+  ENEMY_CAVE_REGEN_INTERVAL_SECONDS,
   ENEMY_NEST_BASE_HEALTH,
   ENEMY_NEST_BASE_LEVEL_XP,
   ENEMY_NEST_BASE_MAX_ACTIVE_ENEMIES,
@@ -9,6 +10,7 @@ import {
   ENEMY_NEST_MIN_SPAWN_INTERVAL_SECONDS,
   ENEMY_NEST_SPAWN_INTERVAL_DECAY,
   ENEMY_NEST_XP_PER_SECOND,
+  cave_regen_rate,
 } from '../upgradeBalances';
 import { ENEMY_ANT_TUNING } from '../antTuning';
 
@@ -38,6 +40,7 @@ export class EnemyNest {
   private hp: number;
   private maxHp: number;
   private spawnTimer: number;
+  private regenTimer = ENEMY_CAVE_REGEN_INTERVAL_SECONDS;
 
   constructor(config: EnemyNestConfig) {
     this.id = config.id;
@@ -70,6 +73,7 @@ export class EnemyNest {
     }
 
     this.grow(deltaTime);
+    this.regenerate(deltaTime);
 
     this.spawnTimer -= deltaTime;
 
@@ -106,12 +110,29 @@ export class EnemyNest {
     this.activeSpawns = Math.max(0, this.activeSpawns - 1);
   }
 
-  getSpawnStats(): EnemySpawnStats {
+  getSpawnStats(waveIndex = 1): EnemySpawnStats {
     const growthFactor = this.level - 1;
+    const safeWaveIndex = Math.max(1, Math.floor(waveIndex));
+    const waveHealthMultiplier = safeWaveIndex * 1.08;
+    const waveDamageMultiplier = safeWaveIndex * 1.05;
 
     return {
-      health: Math.max(1, Math.round(ENEMY_ANT_TUNING.baseHealth * Math.pow(ENEMY_ANT_TUNING.healthScalePerLevel, growthFactor))),
-      damage: Math.max(1, Math.round(ENEMY_ANT_TUNING.baseDamage * Math.pow(ENEMY_ANT_TUNING.damageScalePerLevel, growthFactor))),
+      health: Math.max(
+        1,
+        Math.round(
+          ENEMY_ANT_TUNING.baseHealth *
+            Math.pow(ENEMY_ANT_TUNING.healthScalePerLevel, growthFactor) *
+            waveHealthMultiplier,
+        ),
+      ),
+      damage: Math.max(
+        1,
+        Math.round(
+          ENEMY_ANT_TUNING.baseDamage *
+            Math.pow(ENEMY_ANT_TUNING.damageScalePerLevel, growthFactor) *
+            waveDamageMultiplier,
+        ),
+      ),
       speed: Math.round(ENEMY_ANT_TUNING.baseSpeed * Math.pow(ENEMY_ANT_TUNING.speedScalePerLevel, growthFactor)),
       attackCooldownSeconds: Math.max(0.35, ENEMY_ANT_TUNING.baseAttackCooldownSeconds * Math.pow(0.985, growthFactor)),
     };
@@ -164,6 +185,18 @@ export class EnemyNest {
       this.maxHp = ENEMY_NEST_BASE_HEALTH + (this.level - 1) * ENEMY_NEST_HEALTH_PER_LEVEL;
       this.hp = Math.min(this.maxHp, this.hp + ENEMY_NEST_HEALTH_PER_LEVEL * 0.4);
       requiredXp = this.getLevelUpXpRequirement();
+    }
+  }
+
+  private regenerate(deltaTime: number) {
+    this.regenTimer -= deltaTime;
+
+    while (this.regenTimer <= 0) {
+      this.regenTimer += ENEMY_CAVE_REGEN_INTERVAL_SECONDS;
+
+      if (this.hp < this.maxHp) {
+        this.hp = Math.min(this.maxHp, this.hp + cave_regen_rate);
+      }
     }
   }
 

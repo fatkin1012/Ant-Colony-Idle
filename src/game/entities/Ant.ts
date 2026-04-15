@@ -162,8 +162,11 @@ export class Ant implements GameEntity {
 
       if (distanceSquared(this.x, this.y, world.center.x, world.center.y) <= world.nestRadius * world.nestRadius) {
         this.carriedFoodCount = 0;
-        this.state = 'IDLE';
-        this.idleReturnCountdownSeconds = randomIdleReturnDurationSeconds(world.idleCooldownMultiplier);
+        this.state = 'SEARCHING';
+        this.idleReturnCountdownSeconds = null;
+
+        const outwardDirection = Math.atan2(this.y - world.center.y, this.x - world.center.x);
+        this.direction = outwardDirection + (Math.random() - 0.5) * 0.6;
       }
 
       return;

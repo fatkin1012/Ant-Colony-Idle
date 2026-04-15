@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameCanvas } from './game/GameCanvas';
 import { UpgradeOverlay } from './ui/UpgradeOverlay';
-import { BattlePlannerPanel } from './ui/BattlePlannerPanel';
 import {
   clearPersistedGameState,
   loadGameLanguage,
@@ -19,7 +18,6 @@ const EMPTY_UPGRADE_LEVELS = {
   queenSpawnRate: 0,
   carryCapacity: 0,
   antSpeed: 0,
-  nestRecovery: 0,
   foodCapacity: 0,
   forageRadius: 0,
   populationCapacity: 0,
@@ -42,6 +40,9 @@ const TRANSLATIONS: Record<
     summaryColony: string;
     summaryFood: string;
     summaryNestHealth: string;
+    summaryNextWave: string;
+    upgradesTab: string;
+    battleTab: string;
     showMenu: string;
     hideMenu: string;
   }
@@ -61,6 +62,9 @@ const TRANSLATIONS: Record<
     summaryColony: '蟻群',
     summaryFood: '食物',
     summaryNestHealth: '巢穴耐久',
+    summaryNextWave: '下一波敵人',
+    upgradesTab: '升級',
+    battleTab: '排兵佈陣',
     showMenu: '顯示選單',
     hideMenu: '隱藏選單',
   },
@@ -79,6 +83,9 @@ const TRANSLATIONS: Record<
     summaryColony: 'Colony',
     summaryFood: 'Food',
     summaryNestHealth: 'Nest Health',
+    summaryNextWave: 'Next Enemy Wave',
+    upgradesTab: 'Upgrades',
+    battleTab: 'Battle Planner',
     showMenu: 'Show Menu',
     hideMenu: 'Hide Menu',
   },
@@ -196,7 +203,7 @@ export default function App() {
     clearPersistedGameState();
     useGameStore.getState().hydrateFromPersistence({
       colonySize: 12,
-      foodAmount: 0,
+      foodAmount: 100,
       nestHealth: 100,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,
     });
@@ -233,10 +240,12 @@ export default function App() {
           summaryColonyLabel={text.summaryColony}
           summaryFoodLabel={text.summaryFood}
           summaryNestHealthLabel={text.summaryNestHealth}
+          summaryNextWaveLabel={text.summaryNextWave}
+          upgradesTabLabel={text.upgradesTab}
+          battleTabLabel={text.battleTab}
           showMenuLabel={text.showMenu}
           hideMenuLabel={text.hideMenu}
         />
-        <BattlePlannerPanel language={language} />
       </main>
 
       {isSettingsOpen ? (
