@@ -190,7 +190,7 @@ export function loadGameMode(): GameMode {
     return value;
   }
 
-  return 'battle';
+  return 'idle';
 }
 
 export function saveGameMode(mode: GameMode) {
