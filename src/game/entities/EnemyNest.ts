@@ -45,6 +45,19 @@ export interface EnemySpawnStats {
   attackCooldownSeconds: number;
 }
 
+const ENEMY_NEST_MIN_HEALTH_GAIN_PER_LEVEL = 20;
+const ENEMY_ANT_MIN_HEALTH_GAIN_PER_LEVEL = 2;
+const ENEMY_ANT_MIN_DAMAGE_GAIN_PER_LEVEL = 1;
+
+function scaleWithMinimumGain(baseValue: number, scalePerLevel: number, level: number, minimumGainPerLevel: number) {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const growthFactor = safeLevel - 1;
+  const scaledValue = Math.round(baseValue * Math.pow(scalePerLevel, growthFactor));
+  const linearFloor = Math.round(baseValue + growthFactor * minimumGainPerLevel);
+
+  return Math.max(1, scaledValue, linearFloor);
+}
+
 export class EnemyNest {
   public alive = true;
   public readonly id: string;
@@ -64,7 +77,7 @@ export class EnemyNest {
     this.x = config.x;
     this.y = config.y;
     this.level = Math.max(1, Math.floor(config.level ?? 1));
-    this.maxHp = ENEMY_NEST_BASE_HEALTH + (this.level - 1) * ENEMY_NEST_HEALTH_PER_LEVEL;
+    this.maxHp = scaleWithMinimumGain(ENEMY_NEST_BASE_HEALTH, 1.08, this.level, ENEMY_NEST_MIN_HEALTH_GAIN_PER_LEVEL);
     this.hp = Math.max(1, Math.min(this.maxHp, Math.floor(config.hp ?? this.maxHp)));
     this.xp = Math.max(0, Math.floor(config.xp ?? 0));
     this.activeSpawns = Math.max(0, Math.floor(config.activeSpawns ?? 0));
@@ -149,23 +162,21 @@ export class EnemyNest {
     const safeWaveIndex = Math.max(1, Math.floor(waveIndex));
     const waveHealthMultiplier = safeWaveIndex * 1.08;
     const waveDamageMultiplier = safeWaveIndex * 1.05;
+    const waveAdjustedBaseHealth = ENEMY_ANT_TUNING.baseHealth * waveHealthMultiplier;
+    const waveAdjustedBaseDamage = ENEMY_ANT_TUNING.baseDamage * waveDamageMultiplier;
 
     return {
-      health: Math.max(
-        1,
-        Math.round(
-          ENEMY_ANT_TUNING.baseHealth *
-            Math.pow(ENEMY_ANT_TUNING.healthScalePerLevel, growthFactor) *
-            waveHealthMultiplier,
-        ),
+      health: scaleWithMinimumGain(
+        waveAdjustedBaseHealth,
+        ENEMY_ANT_TUNING.healthScalePerLevel,
+        this.level,
+        ENEMY_ANT_MIN_HEALTH_GAIN_PER_LEVEL,
       ),
-      damage: Math.max(
-        1,
-        Math.round(
-          ENEMY_ANT_TUNING.baseDamage *
-            Math.pow(ENEMY_ANT_TUNING.damageScalePerLevel, growthFactor) *
-            waveDamageMultiplier,
-        ),
+      damage: scaleWithMinimumGain(
+        waveAdjustedBaseDamage,
+        ENEMY_ANT_TUNING.damageScalePerLevel,
+        this.level,
+        ENEMY_ANT_MIN_DAMAGE_GAIN_PER_LEVEL,
       ),
       speed: Math.round(ENEMY_ANT_TUNING.baseSpeed * Math.pow(ENEMY_ANT_TUNING.speedScalePerLevel, growthFactor)),
       attackCooldownSeconds: Math.max(0.35, ENEMY_ANT_TUNING.baseAttackCooldownSeconds * Math.pow(0.985, growthFactor)),
@@ -221,7 +232,7 @@ export class EnemyNest {
     while (this.xp >= requiredXp) {
       this.xp -= requiredXp;
       this.level += 1;
-      this.maxHp = ENEMY_NEST_BASE_HEALTH + (this.level - 1) * ENEMY_NEST_HEALTH_PER_LEVEL;
+      this.maxHp = scaleWithMinimumGain(ENEMY_NEST_BASE_HEALTH, 1.08, this.level, ENEMY_NEST_MIN_HEALTH_GAIN_PER_LEVEL);
       this.hp = Math.min(this.maxHp, this.hp + ENEMY_NEST_HEALTH_PER_LEVEL * 0.4);
       requiredXp = this.getLevelUpXpRequirement();
     }
