@@ -181,6 +181,11 @@ export class EnemyNest {
     const hpRatio = this.maxHp <= 0 ? 0 : this.hp / this.maxHp;
 
     context.beginPath();
+    context.fillStyle = 'rgba(0, 0, 0, 0.26)';
+    context.ellipse(this.x, this.y + nestRadius * 0.58, nestRadius * 1.12, nestRadius * 0.46, 0, 0, Math.PI * 2);
+    context.fill();
+
+    context.beginPath();
     context.fillStyle = '#5b1919';
     context.arc(this.x, this.y, nestRadius, 0, Math.PI * 2);
     context.fill();

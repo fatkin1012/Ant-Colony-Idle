@@ -28,13 +28,13 @@ import {
   BASE_POPULATION_CAPACITY,
   POPULATION_CAPACITY_PER_LEVEL,
   SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
-  SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
-  SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
+  SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
+  MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
+  SOLDIER_DAMAGE_SCALE_PER_LEVEL,
+  SOLDIER_HEALTH_SCALE_PER_LEVEL,
   SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
   SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
   MAX_SOLDIER_ATTACK_RANGE_BONUS,
-  MAX_SOLDIER_DAMAGE_MULTIPLIER,
-  MAX_SOLDIER_HEALTH_MULTIPLIER,
   MAX_SOLDIER_SPEED_MULTIPLIER,
   MAX_SOLDIER_TAUNT_RADIUS_BONUS,
   SPAWN_REDUCTION_PER_LEVEL,
@@ -138,6 +138,8 @@ interface SlashEffect {
   width: number;
 }
 
+type CombatAudioKind = 'hit' | 'kill' | 'impact' | 'nest';
+
 interface EnemyWaveOrder {
   role: EnemyAntRole;
   tactic: EnemySquadTactic;
@@ -206,6 +208,7 @@ interface GameEngineOptions {
     soldierSpeed: number;
     soldierTauntRange: number;
     soldierAttackRange: number;
+    soldierAttackCooldown?: number;
   };
 }
 
@@ -238,6 +241,11 @@ export class GameEngine {
   private readonly slashEffects: SlashEffect[] = [];
   private cameraShakeSeconds = 0;
   private cameraShakeStrength = 0;
+  private cameraShakeDirectionX = 0;
+  private cameraShakeDirectionY = 0;
+  private hitStopSeconds = 0;
+  private readonly lastCombatAudioAt = new Map<CombatAudioKind, number>();
+  private audioContext: AudioContext | null = null;
   private nestHealth = PLAYER_NEST_MAX_HEALTH;
   private readonly enemyWaveTimersSeconds = new Map<string, number>();
   private readonly enemyWaveCounters = new Map<string, number>();
@@ -268,6 +276,7 @@ export class GameEngine {
     soldierSpeed: number;
     soldierTauntRange: number;
     soldierAttackRange: number;
+    soldierAttackCooldown?: number;
   };
   private lastReportedEnemyWaveTenths = Number.NaN;
 
@@ -354,6 +363,18 @@ export class GameEngine {
     const timestamp = performance.now();
     const deltaTime = Math.max(0, (timestamp - this.lastTimestamp) / 1000);
     this.lastTimestamp = timestamp;
+
+    if (this.hitStopSeconds > 0) {
+      this.hitStopSeconds = Math.max(0, this.hitStopSeconds - deltaTime);
+
+      if (!document.hidden) {
+        this.render(this.createWorld());
+      }
+
+      this.scheduleNextTick();
+      return;
+    }
+
     this.accumulatedSeconds += deltaTime;
 
     const maxSimulationSecondsPerTick = 2;
@@ -604,6 +625,7 @@ export class GameEngine {
       soldierSpeed: 0,
       soldierTauntRange: 0,
       soldierAttackRange: 0,
+      soldierAttackCooldown: 0,
     };
 
     const maxFoodOnField = Math.min(
@@ -617,13 +639,13 @@ export class GameEngine {
     );
 
     const maxForageRadius = Math.max(56, Math.min(this.width, this.height) * forageRadiusFactor);
-    const soldierDamageMultiplier = Math.min(
-      MAX_SOLDIER_DAMAGE_MULTIPLIER,
-      1 + Math.max(0, upgradeLevels.soldierDamage) * SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
+    const soldierDamageMultiplier = Math.pow(
+      SOLDIER_DAMAGE_SCALE_PER_LEVEL,
+      Math.max(0, Math.floor(upgradeLevels.soldierDamage)),
     );
-    const soldierHealthMultiplier = Math.min(
-      MAX_SOLDIER_HEALTH_MULTIPLIER,
-      1 + Math.max(0, upgradeLevels.soldierHealth) * SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
+    const soldierHealthMultiplier = Math.pow(
+      SOLDIER_HEALTH_SCALE_PER_LEVEL,
+      Math.max(0, Math.floor(upgradeLevels.soldierHealth)),
     );
     const soldierSpeedMultiplier = Math.min(
       MAX_SOLDIER_SPEED_MULTIPLIER,
@@ -636,6 +658,10 @@ export class GameEngine {
     const soldierAttackRangeBonus = Math.min(
       MAX_SOLDIER_ATTACK_RANGE_BONUS,
       Math.max(0, upgradeLevels.soldierAttackRange) * SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
+    );
+    const soldierAttackCooldownMultiplier = Math.max(
+      MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
+      1 - Math.max(0, upgradeLevels.soldierAttackCooldown ?? 0) * SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
     );
 
     return {
@@ -656,6 +682,7 @@ export class GameEngine {
       soldierSpeedMultiplier,
       soldierTauntRadiusBonus,
       soldierAttackRangeBonus,
+      soldierAttackCooldownMultiplier,
       idleCooldownMultiplier: 1,
       carryCapacityBonus: Math.max(0, upgradeLevels.carryCapacity),
       maxFoodOnField,
@@ -698,13 +725,15 @@ export class GameEngine {
 
   private render(world: GameWorld) {
     this.context.clearRect(0, 0, world.width, world.height);
-    this.context.fillStyle = BACKGROUND_COLOR;
-    this.context.fillRect(0, 0, world.width, world.height);
+
+    this.drawBackground(world);
 
     const shakeFactor = this.cameraShakeSeconds <= 0 ? 0 : this.cameraShakeSeconds / Math.max(0.001, 0.12);
     const shakeMagnitude = this.cameraShakeStrength * Math.max(0, Math.min(1, shakeFactor));
-    const shakeOffsetX = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude;
-    const shakeOffsetY = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude;
+    const jitterX = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude * 0.65;
+    const jitterY = shakeMagnitude <= 0 ? 0 : (Math.random() * 2 - 1) * shakeMagnitude * 0.65;
+    const shakeOffsetX = this.cameraShakeDirectionX * shakeMagnitude * 0.75 + jitterX;
+    const shakeOffsetY = this.cameraShakeDirectionY * shakeMagnitude * 0.75 + jitterY;
 
     this.context.save();
     this.context.translate(shakeOffsetX, shakeOffsetY);
@@ -714,6 +743,38 @@ export class GameEngine {
     this.drawNest(world);
     this.entityManager.draw(this.context, world);
     this.drawAttackEffects();
+    this.context.restore();
+  }
+
+  private drawBackground(world: GameWorld) {
+    const { width, height, center } = world;
+    const backgroundGradient = this.context.createRadialGradient(center.x, center.y, Math.min(width, height) * 0.05, center.x, center.y, Math.max(width, height) * 0.72);
+    backgroundGradient.addColorStop(0, '#31281f');
+    backgroundGradient.addColorStop(0.42, '#231d17');
+    backgroundGradient.addColorStop(1, '#0d0c0b');
+
+    this.context.fillStyle = backgroundGradient;
+    this.context.fillRect(0, 0, width, height);
+
+    this.context.save();
+    this.context.globalAlpha = 0.12;
+    this.context.fillStyle = '#5f4c3d';
+
+    for (let y = 0; y < height; y += 26) {
+      for (let x = (y / 26) % 2 === 0 ? 0 : 13; x < width; x += 26) {
+        const noise = ((x * 17 + y * 23) % 100) / 100;
+        if (noise < 0.72) {
+          this.context.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    this.context.globalAlpha = 0.08;
+    this.context.strokeStyle = '#8f7356';
+    this.context.lineWidth = 1;
+    this.context.beginPath();
+    this.context.arc(center.x, center.y, world.nestRadius + 34, 0, Math.PI * 2);
+    this.context.stroke();
     this.context.restore();
   }
 
@@ -735,6 +796,14 @@ export class GameEngine {
     const { center, nestRadius } = world;
     const maxNestHealth = this.getCurrentNestMaxHealth();
     const hpRatio = maxNestHealth <= 0 ? 0 : Math.max(0, Math.min(1, this.nestHealth / maxNestHealth));
+
+    this.context.save();
+    this.context.globalAlpha = 0.28;
+    this.context.fillStyle = '#000000';
+    this.context.beginPath();
+    this.context.ellipse(center.x, center.y + nestRadius * 0.36, nestRadius * 1.08, nestRadius * 0.42, 0, 0, Math.PI * 2);
+    this.context.fill();
+    this.context.restore();
 
     this.context.beginPath();
     this.context.fillStyle = NEST_FILL;
@@ -810,6 +879,7 @@ export class GameEngine {
       soldierSpeed: 0,
       soldierTauntRange: 0,
       soldierAttackRange: 0,
+      soldierAttackCooldown: 0,
     };
 
     const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
@@ -872,12 +942,13 @@ export class GameEngine {
   private spawnEnemyNestAt(world: GameWorld, x: number, y: number) {
     const id = `enemy-nest-${this.nextEnemyNestId}`;
     this.nextEnemyNestId += 1;
+    const nestSequence = this.getEnemyNestSequence(id);
 
     const enemyNest = new EnemyNest({ id, x, y });
     this.enemyNests.push(enemyNest);
 
     const initialWaveIndex = 1;
-    const initialWaveQueue = this.createWaveOrders(enemyNest.currentLevel, initialWaveIndex);
+    const initialWaveQueue = this.createWaveOrders(nestSequence, initialWaveIndex);
     this.enemyWaveCounters.set(id, initialWaveIndex);
     this.enemyWaveTimersSeconds.set(id, this.getNextWaveCooldownSeconds(enemyNest.currentLevel));
     this.enemyWaveQueues.set(id, initialWaveQueue);
@@ -1361,7 +1432,9 @@ export class GameEngine {
       const flashY = Number.isFinite(hitY) ? (hitY as number) : this.height / 2;
       this.spawnHitFlash(flashX, flashY, amount, '255, 134, 96');
       this.spawnDamageText(flashX, flashY - 6, amount, '#ff9d7f');
-      this.triggerCameraShake(1.7, 0.12);
+      this.triggerCameraShake(1.9, 0.14, flashX, flashY);
+      this.triggerHitStop(Math.min(0.08, 0.02 + amount * 0.003));
+      this.playCombatAudio('nest', Math.min(1, amount / 16));
     }
 
     this.onNestHealthChanged?.(this.nestHealth, maxNestHealth);
@@ -1515,13 +1588,89 @@ export class GameEngine {
     }
   }
 
-  private triggerCameraShake(strength: number, durationSeconds: number) {
+  private triggerCameraShake(strength: number, durationSeconds: number, sourceX?: number, sourceY?: number) {
     if (strength <= 0 || durationSeconds <= 0) {
       return;
     }
 
     this.cameraShakeStrength = Math.max(this.cameraShakeStrength, strength);
     this.cameraShakeSeconds = Math.max(this.cameraShakeSeconds, durationSeconds);
+
+    const dx = Number.isFinite(sourceX) ? (sourceX as number) - this.width / 2 : 0;
+    const dy = Number.isFinite(sourceY) ? (sourceY as number) - this.height / 2 : 0;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance > 0.001) {
+      this.cameraShakeDirectionX = dx / distance;
+      this.cameraShakeDirectionY = dy / distance;
+    } else {
+      this.cameraShakeDirectionX = 0;
+      this.cameraShakeDirectionY = 0;
+    }
+  }
+
+  private triggerHitStop(durationSeconds: number) {
+    if (durationSeconds <= 0) {
+      return;
+    }
+
+    this.hitStopSeconds = Math.max(this.hitStopSeconds, durationSeconds);
+  }
+
+  private playCombatAudio(kind: CombatAudioKind, intensity = 1) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const now = performance.now();
+    const lastPlayedAt = this.lastCombatAudioAt.get(kind) ?? 0;
+    const throttleMs = kind === 'nest' ? 90 : kind === 'kill' ? 70 : 45;
+
+    if (now - lastPlayedAt < throttleMs) {
+      return;
+    }
+
+    this.lastCombatAudioAt.set(kind, now);
+
+    const AudioCtor = window.AudioContext ?? (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioCtor) {
+      return;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioCtor();
+    }
+
+    const context = this.audioContext;
+
+    if (context.state === 'suspended') {
+      void context.resume();
+    }
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const duration = kind === 'kill' ? 0.14 : kind === 'nest' ? 0.16 : 0.09;
+    const frequency = kind === 'nest' ? 78 : kind === 'kill' ? 160 : 220;
+    const detune = kind === 'nest' ? -18 : kind === 'kill' ? 8 : 0;
+
+    oscillator.type = kind === 'nest' ? 'sine' : kind === 'kill' ? 'triangle' : 'square';
+    oscillator.frequency.value = frequency + intensity * (kind === 'nest' ? 18 : 36);
+    oscillator.detune.value = detune;
+
+    gain.gain.value = 0.0001;
+    gain.gain.exponentialRampToValueAtTime(0.12 + intensity * 0.08, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + duration + 0.02);
+
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
   }
 
   private updateAttackEffects(deltaTime: number) {
@@ -1601,6 +1750,8 @@ export class GameEngine {
       this.cameraShakeStrength *= 0.9;
       if (this.cameraShakeSeconds <= 0) {
         this.cameraShakeStrength = 0;
+        this.cameraShakeDirectionX = 0;
+        this.cameraShakeDirectionY = 0;
       }
     }
   }
@@ -1816,6 +1967,8 @@ export class GameEngine {
     }
 
     this.spawnDeathDust(enemyAnt.position.x, enemyAnt.position.y, 1.4);
+    this.triggerHitStop(0.025);
+    this.playCombatAudio('kill', 0.75);
     this.onFoodCollected?.(ENEMY_ANT_KILL_REWARD_FOOD);
   }
 
@@ -1882,7 +2035,7 @@ export class GameEngine {
     this.enemyWaveTimersSeconds.set(nestId, this.getNextWaveCooldownSeconds(enemyNest.currentLevel));
 
     const queue = this.enemyWaveQueues.get(nestId) ?? [];
-    queue.push(...this.createWaveOrders(enemyNest.currentLevel, nextWave));
+    queue.push(...this.createWaveOrders(this.getEnemyNestSequence(nestId), nextWave));
     this.enemyWaveQueues.set(nestId, queue);
   }
 
@@ -1913,26 +2066,17 @@ export class GameEngine {
     this.enemyWaveQueues.set(enemyNest.id, queue);
   }
 
-  private createWaveOrders(level: number, waveIndex: number): EnemyWaveOrder[] {
-    const waveSize = 3 + Math.floor(Math.random() * 3);
+  private createWaveOrders(nestSequence: number, waveIndex: number): EnemyWaveOrder[] {
+    const waveSize = 5 + Math.max(0, Math.floor(nestSequence) - 1) * 3;
     const tacticCycle: EnemySquadTactic[] = [EnemySquadTactic.RAID, EnemySquadTactic.HARASS, EnemySquadTactic.SIEGE];
     const tactic = tacticCycle[(waveIndex - 1) % tacticCycle.length] ?? EnemySquadTactic.RAID;
-    const bruteCount = Math.max(1, Math.floor(waveSize * 0.25));
-    const spitterCount = level >= 3 ? Math.max(1, Math.floor(waveSize * 0.2)) : 0;
-    const runnerCount = Math.max(1, waveSize - bruteCount - spitterCount);
+    const roles: EnemyAntRole[] = [EnemyAntRole.BRUTE, EnemyAntRole.RUNNER, EnemyAntRole.SPITTER];
 
     const orders: EnemyWaveOrder[] = [];
 
-    for (let i = 0; i < bruteCount; i += 1) {
-      orders.push({ role: EnemyAntRole.BRUTE, tactic, waveIndex });
-    }
-
-    for (let i = 0; i < spitterCount; i += 1) {
-      orders.push({ role: EnemyAntRole.SPITTER, tactic, waveIndex });
-    }
-
-    for (let i = 0; i < runnerCount; i += 1) {
-      orders.push({ role: EnemyAntRole.RUNNER, tactic, waveIndex });
+    for (let index = 0; index < waveSize; index += 1) {
+      const role = roles[Math.floor(Math.random() * roles.length)] ?? EnemyAntRole.RUNNER;
+      orders.push({ role, tactic, waveIndex });
     }
 
     for (let index = orders.length - 1; index > 0; index -= 1) {
@@ -1943,6 +2087,22 @@ export class GameEngine {
     }
 
     return orders;
+  }
+
+  private getEnemyNestSequence(nestId: string) {
+    const match = nestId.match(/(\d+)$/);
+
+    if (!match) {
+      return 1;
+    }
+
+    const zeroBasedIndex = Number(match[1]);
+
+    if (!Number.isFinite(zeroBasedIndex)) {
+      return 1;
+    }
+
+    return Math.max(1, Math.floor(zeroBasedIndex) + 1);
   }
 
   private getNextWaveCooldownSeconds(level: number) {

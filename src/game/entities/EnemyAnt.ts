@@ -180,21 +180,55 @@ export class EnemyAnt implements GameEntity {
   }
 
   draw(context: CanvasRenderingContext2D) {
+    const x = Math.round(this.x);
+    const y = Math.round(this.y);
     const lowHealthAlpha = this.maxHp <= 0 ? 1 : 0.6 + 0.4 * (this.hp / this.maxHp);
+
+    context.beginPath();
+    context.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    context.ellipse(x + 1.5, y + 3, 2.1, 0.85, 0, 0, Math.PI * 2);
+    context.fill();
+
     if (this.role === EnemyAntRole.BRUTE) {
-      context.fillStyle = `rgba(223, 92, 78, ${lowHealthAlpha.toFixed(2)})`;
-      context.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
+      context.fillStyle = `rgba(236, 67, 67, ${lowHealthAlpha.toFixed(2)})`;
+      context.fillRect(x, y, 3, 3);
+      context.strokeStyle = `rgba(78, 9, 12, ${Math.max(0.8, lowHealthAlpha).toFixed(2)})`;
+      context.lineWidth = 1;
+      context.strokeRect(x - 0.5, y - 0.5, 4, 4);
+      context.fillStyle = `rgba(255, 214, 214, ${Math.max(0.82, lowHealthAlpha).toFixed(2)})`;
+      context.fillRect(x + 1, y + 1, 1, 1);
       return;
     }
 
     if (this.role === EnemyAntRole.SPITTER) {
-      context.fillStyle = `rgba(245, 177, 82, ${lowHealthAlpha.toFixed(2)})`;
-      context.fillRect(Math.round(this.x), Math.round(this.y), 2, 2);
+      context.fillStyle = `rgba(255, 131, 40, ${lowHealthAlpha.toFixed(2)})`;
+      context.fillRect(x, y, 2, 2);
+      context.strokeStyle = `rgba(90, 31, 5, ${Math.max(0.8, lowHealthAlpha).toFixed(2)})`;
+      context.lineWidth = 1;
+      context.strokeRect(x - 0.5, y - 0.5, 3, 3);
+      context.fillStyle = `rgba(255, 226, 188, ${Math.max(0.82, lowHealthAlpha).toFixed(2)})`;
+      context.beginPath();
+      context.moveTo(x + 1, y + 0.2);
+      context.lineTo(x + 1.7, y + 1.8);
+      context.lineTo(x + 0.3, y + 1.8);
+      context.closePath();
+      context.fill();
       return;
     }
 
-    context.fillStyle = `rgba(214, 108, 167, ${lowHealthAlpha.toFixed(2)})`;
-    context.fillRect(Math.round(this.x), Math.round(this.y), 2, 2);
+    context.fillStyle = `rgba(193, 70, 255, ${lowHealthAlpha.toFixed(2)})`;
+    context.fillRect(x, y, 2, 2);
+    context.strokeStyle = `rgba(58, 13, 87, ${Math.max(0.8, lowHealthAlpha).toFixed(2)})`;
+    context.lineWidth = 1;
+    context.strokeRect(x - 0.5, y - 0.5, 3, 3);
+    context.fillStyle = `rgba(242, 219, 255, ${Math.max(0.82, lowHealthAlpha).toFixed(2)})`;
+    context.beginPath();
+    context.moveTo(x + 1, y + 0.1);
+    context.lineTo(x + 1.9, y + 1);
+    context.lineTo(x + 1, y + 1.9);
+    context.lineTo(x + 0.1, y + 1);
+    context.closePath();
+    context.fill();
   }
 
   private moveTowards(targetX: number, targetY: number, deltaTime: number) {

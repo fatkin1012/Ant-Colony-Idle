@@ -274,8 +274,20 @@ export class Ant implements GameEntity {
   }
 
   draw(context: CanvasRenderingContext2D) {
-    context.fillStyle = '#f8f7f2';
-    context.fillRect(Math.round(this.x), Math.round(this.y), ANT_PIXEL_SIZE, ANT_PIXEL_SIZE);
+    const x = Math.round(this.x);
+    const y = Math.round(this.y);
+
+    context.beginPath();
+    context.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    context.ellipse(x + 1.5, y + 3.2, 2.1, 0.9, 0, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = '#aee8ff';
+    context.fillRect(x, y, ANT_PIXEL_SIZE, ANT_PIXEL_SIZE);
+
+    context.strokeStyle = '#0b3850';
+    context.lineWidth = 1;
+    context.strokeRect(x - 0.5, y - 0.5, ANT_PIXEL_SIZE + 1, ANT_PIXEL_SIZE + 1);
   }
 
   private moveTowards(targetX: number, targetY: number, speed: number, deltaTime: number) {

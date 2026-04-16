@@ -10,7 +10,7 @@ import type { PersistedGameState } from './gamePersistence';
 import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
-export const INITIAL_FOOD_AMOUNT = 200;
+export const INITIAL_FOOD_AMOUNT = 500;
 
 export type UpgradeKey =
   | 'queenSpawnRate'
@@ -25,7 +25,8 @@ export type UpgradeKey =
   | 'soldierHealth'
   | 'soldierSpeed'
   | 'soldierTauntRange'
-  | 'soldierAttackRange';
+  | 'soldierAttackRange'
+  | 'soldierAttackCooldown';
 
 export interface UpgradeState {
   queenSpawnRate: number;
@@ -41,6 +42,7 @@ export interface UpgradeState {
   soldierSpeed: number;
   soldierTauntRange: number;
   soldierAttackRange: number;
+  soldierAttackCooldown: number;
 }
 
 export interface BattleDeployment {
@@ -84,17 +86,21 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   foodCapacity: 30,
   forageRadius: 35,
   populationCapacity: 55,
-  soldierDamage: 44,
-  soldierHealth: 48,
-  soldierSpeed: 42,
-  soldierTauntRange: 40,
-  soldierAttackRange: 46,
+  soldierDamage: 20,
+  soldierHealth: 20,
+  soldierSpeed: 20,
+  soldierTauntRange: 20,
+  soldierAttackRange: 20,
+  soldierAttackCooldown: 20,
 };
 
-const UPGRADE_COST_GROWTH = 1.45;
+const UPGRADE_COST_TIER_SIZE = 10;
+const UPGRADE_COST_GROWTH_PER_TIER = 1.45;
 
 function calculateCost(baseCost: number, level: number) {
-  return Math.floor(baseCost * Math.pow(UPGRADE_COST_GROWTH, level));
+  const safeLevel = Math.max(0, Math.floor(level));
+  const tier = Math.floor(safeLevel / UPGRADE_COST_TIER_SIZE);
+  return Math.floor(baseCost * Math.pow(UPGRADE_COST_GROWTH_PER_TIER, tier));
 }
 
 function clampUpgradeLevel(level: number) {
@@ -123,6 +129,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     soldierSpeed: 0,
     soldierTauntRange: 0,
     soldierAttackRange: 0,
+    soldierAttackCooldown: 0,
   },
   hydrateFromPersistence: (state) => {
     const nestMaxHealthLevel = clampUpgradeLevel((state.upgradeLevels as Partial<UpgradeState>).nestMaxHealth ?? 0);
@@ -150,6 +157,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         soldierSpeed: clampUpgradeLevel(state.upgradeLevels.soldierSpeed),
         soldierTauntRange: clampUpgradeLevel(state.upgradeLevels.soldierTauntRange),
         soldierAttackRange: clampUpgradeLevel(state.upgradeLevels.soldierAttackRange),
+        soldierAttackCooldown: clampUpgradeLevel((state.upgradeLevels as Partial<UpgradeState>).soldierAttackCooldown ?? 0),
       },
     });
   },

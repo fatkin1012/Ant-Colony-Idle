@@ -230,17 +230,50 @@ export class PlayerSoldier implements GameEntity {
   }
 
   draw(context: CanvasRenderingContext2D) {
+    const x = Math.round(this.x);
+    const y = Math.round(this.y);
+    const centerX = x + 1.5;
+    const centerY = y + 1.5;
     const alpha = this.hpMax <= 0 ? 1 : 0.6 + 0.4 * (this.hp / this.hpMax);
 
+    context.beginPath();
+    context.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    context.ellipse(centerX, y + 3.5, 2.4, 1.1, 0, 0, Math.PI * 2);
+    context.fill();
+
     if (this.role === AntRole.GUARDIAN) {
-      context.fillStyle = `rgba(124, 210, 255, ${alpha.toFixed(2)})`;
+      context.fillStyle = `rgba(54, 182, 255, ${alpha.toFixed(2)})`;
     } else if (this.role === AntRole.SPITTER) {
-      context.fillStyle = `rgba(164, 229, 119, ${alpha.toFixed(2)})`;
+      context.fillStyle = `rgba(52, 236, 192, ${alpha.toFixed(2)})`;
     } else {
-      context.fillStyle = `rgba(247, 213, 136, ${alpha.toFixed(2)})`;
+      context.fillStyle = `rgba(250, 236, 116, ${alpha.toFixed(2)})`;
     }
 
-    context.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
+    context.fillRect(x, y, 3, 3);
+
+    context.strokeStyle = `rgba(10, 38, 52, ${Math.max(0.8, alpha).toFixed(2)})`;
+    context.lineWidth = 1;
+    context.strokeRect(x - 0.5, y - 0.5, 4, 4);
+
+    context.fillStyle = `rgba(255, 255, 255, ${Math.max(0.82, alpha).toFixed(2)})`;
+    if (this.role === AntRole.GUARDIAN) {
+      context.fillRect(Math.round(centerX - 0.5), Math.round(centerY - 0.5), 1, 1);
+    } else if (this.role === AntRole.SPITTER) {
+      context.beginPath();
+      context.moveTo(centerX, centerY - 0.9);
+      context.lineTo(centerX + 0.9, centerY + 0.8);
+      context.lineTo(centerX - 0.9, centerY + 0.8);
+      context.closePath();
+      context.fill();
+    } else {
+      context.beginPath();
+      context.moveTo(centerX, centerY - 1);
+      context.lineTo(centerX + 1, centerY);
+      context.lineTo(centerX, centerY + 1);
+      context.lineTo(centerX - 1, centerY);
+      context.closePath();
+      context.fill();
+    }
   }
 
   private applyHealthMultiplier(multiplier: number) {

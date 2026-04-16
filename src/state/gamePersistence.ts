@@ -44,6 +44,8 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   const soldierTauntRange = typeof rawSoldierTauntRange === 'number' ? rawSoldierTauntRange : 0;
   const rawSoldierAttackRange = (state.upgradeLevels as unknown as Record<string, unknown>).soldierAttackRange;
   const soldierAttackRange = typeof rawSoldierAttackRange === 'number' ? rawSoldierAttackRange : 0;
+  const rawSoldierAttackCooldown = (state.upgradeLevels as unknown as Record<string, unknown>).soldierAttackCooldown;
+  const soldierAttackCooldown = typeof rawSoldierAttackCooldown === 'number' ? rawSoldierAttackCooldown : 0;
 
   return {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
@@ -64,6 +66,7 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       soldierSpeed: Math.max(0, Math.floor(soldierSpeed)),
       soldierTauntRange: Math.max(0, Math.floor(soldierTauntRange)),
       soldierAttackRange: Math.max(0, Math.floor(soldierAttackRange)),
+      soldierAttackCooldown: Math.max(0, Math.floor(soldierAttackCooldown)),
     },
     engineState: isValidEngineState(state.engineState) ? state.engineState : null,
   };
@@ -116,6 +119,7 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     (typeof upgradeLevels.soldierSpeed === 'number' || typeof upgradeLevels.soldierSpeed === 'undefined') &&
     (typeof upgradeLevels.soldierTauntRange === 'number' || typeof upgradeLevels.soldierTauntRange === 'undefined') &&
     (typeof upgradeLevels.soldierAttackRange === 'number' || typeof upgradeLevels.soldierAttackRange === 'undefined') &&
+    (typeof upgradeLevels.soldierAttackCooldown === 'number' || typeof upgradeLevels.soldierAttackCooldown === 'undefined') &&
     (typeof candidate.engineState === 'undefined' || isValidEngineState(candidate.engineState))
   );
 }

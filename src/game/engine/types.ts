@@ -15,6 +15,7 @@ export interface GameWorld {
   readonly soldierSpeedMultiplier: number;
   readonly soldierTauntRadiusBonus: number;
   readonly soldierAttackRangeBonus: number;
+  readonly soldierAttackCooldownMultiplier: number;
   readonly idleCooldownMultiplier: number;
   readonly carryCapacityBonus: number;
   readonly maxFoodOnField: number;

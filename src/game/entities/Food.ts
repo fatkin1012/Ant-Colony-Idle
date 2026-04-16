@@ -30,8 +30,27 @@ export class Food {
   }
 
   draw(context: CanvasRenderingContext2D, _world: GameWorld) {
-    context.fillStyle = '#6adb4b';
-    context.fillRect(Math.round(this.x), Math.round(this.y), this.size, this.size);
+    const centerX = this.x + this.size / 2;
+    const centerY = this.y + this.size / 2;
+    const radius = Math.max(1.3, this.size * 0.85);
+
+    context.beginPath();
+    context.moveTo(centerX, centerY - radius);
+    context.lineTo(centerX + radius, centerY);
+    context.lineTo(centerX, centerY + radius);
+    context.lineTo(centerX - radius, centerY);
+    context.closePath();
+    context.fillStyle = '#3ed4ff';
+    context.fill();
+
+    context.lineWidth = 1;
+    context.strokeStyle = '#0a3140';
+    context.stroke();
+
+    context.beginPath();
+    context.arc(centerX, centerY, Math.max(0.6, this.size * 0.18), 0, Math.PI * 2);
+    context.fillStyle = '#e9fbff';
+    context.fill();
   }
 
   containsPoint(x: number, y: number) {
