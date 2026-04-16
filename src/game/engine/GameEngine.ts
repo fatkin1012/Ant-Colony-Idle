@@ -582,14 +582,28 @@ export class GameEngine {
     }
 
     for (const nestState of snapshot.enemyNests) {
+      const rawLevel = (nestState as Partial<EnemyNestSnapshot>).level;
+      const rawWaveCounter = (nestState as Partial<EnemyNestSnapshot>).waveCounter;
+      const hasExplicitLevel = typeof rawLevel === 'number' && Number.isFinite(rawLevel) && rawLevel > 0;
+      const inferredLevelFromWave = typeof rawWaveCounter === 'number' && Number.isFinite(rawWaveCounter)
+        ? Math.max(1, Math.floor(rawWaveCounter))
+        : 1;
+      const restoredLevel = hasExplicitLevel ? Math.floor(rawLevel as number) : inferredLevelFromWave;
+      const rawHp = (nestState as Partial<EnemyNestSnapshot>).hp;
+      const restoredHp =
+        hasExplicitLevel && typeof rawHp === 'number' && Number.isFinite(rawHp) && rawHp > 0
+          ? rawHp
+          : undefined;
+
       const enemyNest = new EnemyNest({
         id: nestState.id,
         x: nestState.x,
         y: nestState.y,
-        level: nestState.level,
-        hp: nestState.hp,
+        level: restoredLevel,
+        hp: restoredHp,
         xp: nestState.xp,
-        activeSpawns: nestState.activeSpawns,
+        // Enemy ants are not persisted in snapshots. Reset this counter to avoid stale spawn caps from old saves.
+        activeSpawns: 0,
         spawnTimer: nestState.spawnTimer,
         regenTimer: nestState.regenTimer,
       });
@@ -1049,6 +1063,7 @@ export class GameEngine {
       this.spawnWaveUnits(world, enemyNest);
 
       const spawnCount = enemyNest.update(deltaTime);
+      this.syncEnemyAntStrengthWithNestLevel(enemyNest);
 
       if (spawnCount <= 0 || !enemyNest.alive) {
         continue;
@@ -1062,6 +1077,19 @@ export class GameEngine {
 
         this.spawnEnemyAnt(world, enemyNest, this.pickAmbientEnemyRole(enemyNest.currentLevel), EnemySquadTactic.SIEGE, 1);
       }
+    }
+  }
+
+  private syncEnemyAntStrengthWithNestLevel(enemyNest: EnemyNest) {
+    const baselineStats = enemyNest.getSpawnStats(1);
+
+    for (const entity of this.entityManager.values()) {
+      if (!(entity instanceof EnemyAnt) || !entity.alive || entity.nestId !== enemyNest.id) {
+        continue;
+      }
+
+      const tunedStats = this.applyEnemyRoleModifiers(baselineStats, entity.role, entity.tactic);
+      entity.applyMinimumCombatStats(tunedStats);
     }
   }
 

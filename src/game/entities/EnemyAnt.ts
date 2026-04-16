@@ -40,11 +40,11 @@ export class EnemyAnt implements GameEntity {
   private x: number;
   private y: number;
   private hp: number;
-  private readonly maxHp: number;
-  private readonly rawDamage: number;
-  private readonly rawSpeed: number;
+  private maxHp: number;
+  private rawDamage: number;
+  private rawSpeed: number;
   private readonly rawAttackRange: number;
-  private readonly baseAttackCooldownSeconds: number;
+  private baseAttackCooldownSeconds: number;
   private attackCooldownSeconds = 0;
   private timeSinceSpawn = 0;
   private readonly runChargeDelaySeconds: number;
@@ -107,6 +107,19 @@ export class EnemyAnt implements GameEntity {
     }
 
     return false;
+  }
+
+  applyMinimumCombatStats(stats: { health: number; damage: number; speed: number; attackCooldownSeconds: number }) {
+    const nextMaxHp = Math.max(1, Math.floor(stats.health));
+    const nextDamage = Math.max(1, Math.floor(stats.damage));
+    const nextSpeed = Math.max(8, Math.floor(stats.speed));
+    const nextCooldownSeconds = Math.max(0.25, stats.attackCooldownSeconds);
+
+    this.maxHp = Math.max(this.maxHp, nextMaxHp);
+    this.hp = Math.min(this.maxHp, Math.max(this.hp, Math.round(nextMaxHp * 0.6)));
+    this.rawDamage = Math.max(this.rawDamage, nextDamage);
+    this.rawSpeed = Math.max(this.rawSpeed, nextSpeed);
+    this.baseAttackCooldownSeconds = Math.min(this.baseAttackCooldownSeconds, nextCooldownSeconds);
   }
 
   update(deltaTime: number, world: GameWorld) {
