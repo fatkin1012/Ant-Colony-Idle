@@ -120,6 +120,13 @@ body {
   padding: 0.4rem 0.6rem;
 }
 
+.settings-field__hint {
+  margin: -0.1rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(243, 240, 232, 0.68);
+}
+
 .settings-reset {
   margin-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -287,6 +294,22 @@ body {
   touch-action: none;
 }
 
+.summary-panel--battle {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.summary-panel:not(.summary-panel--battle) {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 1.2rem;
+}
+
+.summary-panel__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1rem;
+}
+
 .summary-panel__alert {
   position: absolute;
   top: -0.55rem;
@@ -323,7 +346,8 @@ body {
 
 .summary-stat {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .summary-stat__icon {
@@ -362,7 +386,8 @@ body {
 
 .panel-value {
   display: block;
-  font-size: 1.1rem;
+  font-size: 1.02rem;
+  line-height: 1.1;
   color: #f4eddc;
 }
 
@@ -371,21 +396,28 @@ body {
 }
 
 .summary-panel__toggle {
+  margin-left: auto;
   align-self: center;
-  width: 8.5rem;
-  min-width: 8.5rem;
-  min-height: 36px;
-  padding: 0.45rem 0.7rem;
+  width: 7rem;
+  min-width: 7rem;
+  min-height: 42px;
+  padding: 0.05rem 0.55rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(32, 28, 21, 0.88);
   color: rgba(243, 240, 232, 0.86);
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
   text-align: center;
   cursor: pointer;
+}
+
+.summary-panel--battle .summary-panel__toggle {
+  margin-left: 0;
+  align-self: center;
 }
 
 .summary-panel__toggle:hover {
@@ -725,9 +757,23 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .summary-panel--battle {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-panel__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .summary-panel__toggle {
     width: 100%;
     min-width: 0;
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .summary-panel__stats {
+    grid-template-columns: 1fr;
   }
 }

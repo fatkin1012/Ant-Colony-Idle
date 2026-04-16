@@ -3,11 +3,14 @@ import { GameCanvas } from './game/GameCanvas';
 import { UpgradeOverlay } from './ui/UpgradeOverlay';
 import {
   clearPersistedGameState,
+  loadGameMode,
   loadGameLanguage,
   loadPersistedGameState,
+  saveGameMode,
   saveGameLanguage,
   savePersistedGameState,
   savePersistedGameStateOnPageHide,
+  type GameMode,
   type GameLanguage,
 } from './state/gamePersistence';
 import { DEFAULT_NEST_HEALTH, getPersistedGameSnapshot, INITIAL_FOOD_AMOUNT, useGameStore } from './state/gameStore';
@@ -40,6 +43,10 @@ const TRANSLATIONS: Record<
     language: string;
     languageZh: string;
     languageEn: string;
+    mode: string;
+    modeBattle: string;
+    modeIdle: string;
+    modeHint: string;
     resetLabel: string;
     resetHint: string;
     resetAction: string;
@@ -66,6 +73,10 @@ const TRANSLATIONS: Record<
     language: '語言',
     languageZh: '繁體中文',
     languageEn: 'English',
+    mode: '遊戲模式',
+    modeBattle: '戰役模式',
+    modeIdle: '休閑掛機模式',
+    modeHint: '切換模式會立即套用，共通進度會保留。',
     resetLabel: '重置進度',
     resetHint: '清空目前本地存檔並從初始狀態重新開始。',
     resetAction: '重置進度',
@@ -91,6 +102,10 @@ const TRANSLATIONS: Record<
     language: 'Language',
     languageZh: 'Traditional Chinese',
     languageEn: 'English',
+    mode: 'Game Mode',
+    modeBattle: 'Battle Mode',
+    modeIdle: 'Idle Mode',
+    modeHint: 'The mode changes immediately and shared progress stays saved.',
     resetLabel: 'Reset Progress',
     resetHint: 'Clear local save and restart from the initial state.',
     resetAction: 'Reset Progress',
@@ -113,13 +128,14 @@ const TRANSLATIONS: Record<
 
 export default function App() {
   const [language, setLanguage] = useState<GameLanguage>(() => loadGameLanguage());
+  const [gameMode, setGameMode] = useState<GameMode>(() => loadGameMode());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPersistenceReady, setIsPersistenceReady] = useState(false);
   const [gameSessionKey, setGameSessionKey] = useState(0);
   const nestHealth = useGameStore((state) => state.nestHealth);
 
   const text = TRANSLATIONS[language];
-  const isGameOver = nestHealth <= 0;
+  const isGameOver = gameMode === 'battle' && nestHealth <= 0;
 
   useEffect(() => {
     let disposed = false;
@@ -224,6 +240,11 @@ export default function App() {
     saveGameLanguage(nextLanguage);
   };
 
+  const handleGameModeChange = (nextMode: GameMode) => {
+    setGameMode(nextMode);
+    saveGameMode(nextMode);
+  };
+
   const resetToNewRun = () => {
     clearPersistedGameState();
     useGameStore.getState().hydrateFromPersistence({
@@ -249,10 +270,6 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="hud">
-        <div>
-          <p className="eyebrow">Ant Colony Idle</p>
-          <h1>{text.title}</h1>
-        </div>
         <div className="hud-actions">
           <button
             type="button"
@@ -270,9 +287,10 @@ export default function App() {
         </div>
       </header>
       <main className="game-stage">
-        {isPersistenceReady ? <GameCanvas key={gameSessionKey} /> : null}
+        {isPersistenceReady ? <GameCanvas key={gameSessionKey} gameMode={gameMode} /> : null}
         <UpgradeOverlay
           language={language}
+          gameMode={gameMode}
           summaryColonyLabel={text.summaryColony}
           summaryFoodLabel={text.summaryFood}
           summaryNestHealthLabel={text.summaryNestHealth}
@@ -306,6 +324,19 @@ export default function App() {
                 <option value="zh-TW">{text.languageZh}</option>
                 <option value="en">{text.languageEn}</option>
               </select>
+            </label>
+
+            <label className="settings-field" htmlFor="game-mode-select">
+              <span>{text.mode}</span>
+              <select
+                id="game-mode-select"
+                value={gameMode}
+                onChange={(event) => handleGameModeChange(event.target.value as GameMode)}
+              >
+                <option value="battle">{text.modeBattle}</option>
+                <option value="idle">{text.modeIdle}</option>
+              </select>
+              <p className="settings-field__hint">{text.modeHint}</p>
             </label>
 
             <div className="settings-reset">

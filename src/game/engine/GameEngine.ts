@@ -41,6 +41,7 @@ import {
   getPlayerNestMaxHealth,
 } from '../upgradeBalances';
 import type { BattleDeployment } from '../../state/gameStore';
+import type { GameMode } from '../../state/gamePersistence';
 import { AntRole, SquadMode } from '../combat/antTypes';
 import { ANT_TEMPLATES } from '../combat/antBalance';
 
@@ -181,6 +182,7 @@ export interface GameEngineSnapshot {
 }
 
 interface GameEngineOptions {
+  gameMode?: GameMode;
   onFoodCollected?: (amount: number) => void;
   getFoodAmount?: () => number;
   onAntSpawned?: (amount: number) => void;
@@ -217,6 +219,7 @@ export class GameEngine {
   private readonly context: CanvasRenderingContext2D;
   private readonly entityManager = new EntityManager();
   private readonly resizeObserver: ResizeObserver;
+  private readonly gameMode: GameMode;
   private readonly handleVisibilityChange = () => {
     this.scheduleNextTick();
   };
@@ -289,6 +292,7 @@ export class GameEngine {
 
     this.canvas = canvas;
     this.context = context;
+    this.gameMode = options.gameMode ?? 'battle';
     this.onFoodCollected = options.onFoodCollected;
     this.getFoodAmount = options.getFoodAmount;
     this.onAntSpawned = options.onAntSpawned;
@@ -317,7 +321,9 @@ export class GameEngine {
       this.restoreFromSnapshot(options.initialState, world);
     } else {
       this.seedAnts();
-      this.seedEnemyNests(world);
+      if (this.gameMode === 'battle') {
+        this.seedEnemyNests(world);
+      }
     }
 
     this.emitStateChanged();
@@ -414,18 +420,26 @@ export class GameEngine {
   private stepSimulation(deltaTime: number, world: GameWorld) {
     this.time += deltaTime;
 
-    this.consumeQueuedBattleDeployments(world);
+    if (this.gameMode === 'battle') {
+      this.consumeQueuedBattleDeployments(world);
+    }
     this.updateRealtimeSpawning(deltaTime, world);
-    this.updateTimedEnemyCaveSpawning(world);
-    this.updateEnemyNestSpawning(deltaTime, world);
+    if (this.gameMode === 'battle') {
+      this.updateTimedEnemyCaveSpawning(world);
+      this.updateEnemyNestSpawning(deltaTime, world);
+    }
     this.entityManager.update(deltaTime, world);
     this.resolveFoodDeliveries();
     this.resolveFoodPickups(world);
-    this.resolveEnemyCombat(deltaTime, world);
+    if (this.gameMode === 'battle') {
+      this.resolveEnemyCombat(deltaTime, world);
+    }
     this.applyNestRecovery(deltaTime);
     this.updateAttackEffects(deltaTime);
     this.pruneFood();
-    this.pruneEnemyNests();
+    if (this.gameMode === 'battle') {
+      this.pruneEnemyNests();
+    }
     this.ensureFoodPopulation(world);
     this.reportNextEnemyWaveTime();
     this.emitStateChanged();
@@ -488,6 +502,10 @@ export class GameEngine {
   }
 
   private getNextEnemyWaveTimeSeconds() {
+    if (this.gameMode !== 'battle') {
+      return 0;
+    }
+
     let nextSeconds = Math.max(0, this.nextEnemyCaveSpawnAtSeconds - this.time);
     let hasWaveTimer = false;
 
@@ -542,6 +560,13 @@ export class GameEngine {
           carriedFoodCount: Math.max(0, Math.floor(ant.carriedFoodCount ?? 0)),
         }),
       );
+    }
+
+    if (this.gameMode !== 'battle') {
+      this.reportNextEnemyWaveTime();
+      this.onStateChanged?.(this.createSnapshot());
+      this.onPopulationUsageChanged?.(this.getPopulationCount());
+      return;
     }
 
     for (const soldier of snapshot.playerSoldiers) {
@@ -712,14 +737,17 @@ export class GameEngine {
           y: guardian.position.y,
           tauntRadius: guardian.getTauntRadius(soldierTauntRadiusBonus),
         })),
-      enemyNests: this.enemyNests
-        .filter((enemyNest) => enemyNest.alive)
-        .map((enemyNest) => ({
-          id: enemyNest.id,
-          x: enemyNest.position.x,
-          y: enemyNest.position.y,
-          radius: enemyNest.radius,
-        })),
+      enemyNests:
+        this.gameMode === 'battle'
+          ? this.enemyNests
+              .filter((enemyNest) => enemyNest.alive)
+              .map((enemyNest) => ({
+                id: enemyNest.id,
+                x: enemyNest.position.x,
+                y: enemyNest.position.y,
+                radius: enemyNest.radius,
+              }))
+          : [],
     };
   }
 
@@ -739,7 +767,9 @@ export class GameEngine {
     this.context.translate(shakeOffsetX, shakeOffsetY);
 
     this.drawFood(world);
-    this.drawEnemyNests();
+    if (this.gameMode === 'battle') {
+      this.drawEnemyNests();
+    }
     this.drawNest(world);
     this.entityManager.draw(this.context, world);
     this.drawAttackEffects();
@@ -918,6 +948,10 @@ export class GameEngine {
   }
 
   private seedEnemyNests(_world: GameWorld) {
+    if (this.gameMode !== 'battle') {
+      return;
+    }
+
     this.enemyNests = [];
     this.enemyWaveTimersSeconds.clear();
     this.enemyWaveCounters.clear();
@@ -927,6 +961,10 @@ export class GameEngine {
   }
 
   private updateTimedEnemyCaveSpawning(world: GameWorld) {
+    if (this.gameMode !== 'battle') {
+      return;
+    }
+
     while (this.time >= this.nextEnemyCaveSpawnAtSeconds) {
       const position = this.createRandomEnemyNestPosition(world);
 
@@ -998,6 +1036,10 @@ export class GameEngine {
   }
 
   private updateEnemyNestSpawning(deltaTime: number, world: GameWorld) {
+    if (this.gameMode !== 'battle') {
+      return;
+    }
+
     for (const enemyNest of this.enemyNests) {
       if (!enemyNest.alive) {
         continue;
@@ -1168,6 +1210,10 @@ export class GameEngine {
   }
 
   private resolveEnemyCombat(deltaTime: number, world: GameWorld) {
+    if (this.gameMode !== 'battle') {
+      return;
+    }
+
     const ants = Array.from(this.entityManager.values()).filter((entity): entity is Ant => entity instanceof Ant);
     const soldiers = Array.from(this.entityManager.values()).filter(
       (entity): entity is PlayerSoldier => entity instanceof PlayerSoldier,

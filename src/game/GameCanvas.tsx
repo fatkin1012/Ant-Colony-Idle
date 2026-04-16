@@ -1,8 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { GameEngine } from './engine/GameEngine';
 import { useGameStore } from '../state/gameStore';
+import type { GameMode } from '../state/gamePersistence';
 
-export function GameCanvas() {
+interface GameCanvasProps {
+  gameMode: GameMode;
+}
+
+export function GameCanvas({ gameMode }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
@@ -14,6 +19,7 @@ export function GameCanvas() {
     }
 
     const engine = new GameEngine(canvas, {
+      gameMode,
       initialState: useGameStore.getState().engineState,
       onFoodCollected: (amount) => {
         useGameStore.getState().earnFood(amount);
@@ -52,7 +58,7 @@ export function GameCanvas() {
       engine.destroy();
       engineRef.current = null;
     };
-  }, []);
+  }, [gameMode]);
 
   return <canvas ref={canvasRef} className="game-canvas" aria-label="Ant colony game canvas" role="img" />;
 }

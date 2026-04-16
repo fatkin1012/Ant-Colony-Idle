@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore, type UpgradeKey } from '../state/gameStore';
-import type { GameLanguage } from '../state/gamePersistence';
+import type { GameLanguage, GameMode } from '../state/gamePersistence';
 import { BattlePlannerPanel } from './BattlePlannerPanel';
 import {
   ANT_SPEED_MULTIPLIER_PER_LEVEL,
@@ -360,6 +360,7 @@ const SOLDIER_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
 
 interface UpgradeOverlayProps {
   language: GameLanguage;
+  gameMode: GameMode;
   summaryColonyLabel: string;
   summaryFoodLabel: string;
   summaryNestHealthLabel: string;
@@ -373,6 +374,7 @@ interface UpgradeOverlayProps {
 
 export function UpgradeOverlay({
   language,
+  gameMode,
   summaryColonyLabel,
   summaryFoodLabel,
   summaryNestHealthLabel,
@@ -407,11 +409,21 @@ export function UpgradeOverlay({
   const upgradeLevels = useGameStore((state) => state.upgradeLevels);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
   const isZh = language === 'zh-TW';
+  const isBattleMode = gameMode === 'battle';
+  const visibleColonyUpgradeCards = isBattleMode
+    ? COLONY_UPGRADE_CARDS
+    : COLONY_UPGRADE_CARDS.filter(({ key }) => key !== 'nestRecovery' && key !== 'nestMaxHealth');
   const maxNestHealth = getPlayerNestMaxHealth(upgradeLevels.nestMaxHealth ?? 0);
   const safeNestHealth = Math.max(0, Math.floor(nestHealth));
   const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
   const attackAlertLabel = isZh ? '敵襲警報' : 'Under Attack';
-  const isUnderAttack = lastNestHitAt > 0 && now - lastNestHitAt < ATTACK_ALERT_DURATION_MS;
+  const isUnderAttack = isBattleMode && lastNestHitAt > 0 && now - lastNestHitAt < ATTACK_ALERT_DURATION_MS;
+
+  useEffect(() => {
+    if (!isBattleMode && activeTab !== 'upgrades') {
+      setActiveTab('upgrades');
+    }
+  }, [activeTab, isBattleMode]);
 
   useEffect(() => {
     if (!isUnderAttack) {
@@ -575,27 +587,33 @@ export function UpgradeOverlay({
       aria-label="Upgrade controls"
     >
       <div className="upgrade-shell">
-        <section className="panel summary-panel" onPointerDown={startDrag} role="presentation">
+        <section className={`panel summary-panel${isBattleMode ? ' summary-panel--battle' : ''}`} onPointerDown={startDrag} role="presentation">
           {isUnderAttack ? (
             <span className="summary-panel__alert" role="status" aria-live="polite">
               {attackAlertLabel}
             </span>
           ) : null}
-          <div className="summary-stat" role="group" aria-label={summaryColonyLabel}>
-            <SummaryIcon kind="colony" label={summaryColonyLabel} />
-            <strong className="panel-value">{colonySize} / {populationLimit}</strong>
-          </div>
-          <div className="summary-stat" role="group" aria-label={summaryFoodLabel}>
-            <SummaryIcon kind="food" label={summaryFoodLabel} />
-            <strong className="panel-value">{foodAmount}</strong>
-          </div>
-          <div className="summary-stat" role="group" aria-label={summaryNestHealthLabel}>
-            <SummaryIcon kind="health" label={summaryNestHealthLabel} />
-            <strong className="panel-value">{safeNestHealth} / {maxNestHealth}</strong>
-          </div>
-          <div className="summary-stat" role="group" aria-label={summaryNextWaveLabel}>
-            <SummaryIcon kind="wave" label={summaryNextWaveLabel} />
-            <strong className="panel-value panel-value--timer">{formatWaveCountdown(nextEnemyWaveInSeconds)}</strong>
+          <div className="summary-panel__stats">
+            <div className="summary-stat" role="group" aria-label={summaryColonyLabel}>
+              <SummaryIcon kind="colony" label={summaryColonyLabel} />
+              <strong className="panel-value">{colonySize} / {populationLimit}</strong>
+            </div>
+            <div className="summary-stat" role="group" aria-label={summaryFoodLabel}>
+              <SummaryIcon kind="food" label={summaryFoodLabel} />
+              <strong className="panel-value">{foodAmount}</strong>
+            </div>
+            {isBattleMode ? (
+              <div className="summary-stat" role="group" aria-label={summaryNestHealthLabel}>
+                <SummaryIcon kind="health" label={summaryNestHealthLabel} />
+                <strong className="panel-value">{safeNestHealth} / {maxNestHealth}</strong>
+              </div>
+            ) : null}
+            {isBattleMode ? (
+              <div className="summary-stat" role="group" aria-label={summaryNextWaveLabel}>
+                <SummaryIcon kind="wave" label={summaryNextWaveLabel} />
+                <strong className="panel-value panel-value--timer">{formatWaveCountdown(nextEnemyWaveInSeconds)}</strong>
+              </div>
+            ) : null}
           </div>
           <button
             type="button"
@@ -610,7 +628,12 @@ export function UpgradeOverlay({
 
         {!isCollapsed ? (
           <div className="upgrade-scroll-area">
-            <div className="overlay-tabs" role="tablist" aria-label={isZh ? '選單分頁' : 'Menu tabs'}>
+            <div
+              className="overlay-tabs"
+              role="tablist"
+              aria-label={isZh ? '選單分頁' : 'Menu tabs'}
+              style={{ gridTemplateColumns: isBattleMode ? 'repeat(3, minmax(0, 1fr))' : '1fr' }}
+            >
               <button
                 type="button"
                 role="tab"
@@ -620,28 +643,32 @@ export function UpgradeOverlay({
               >
                 {upgradesTabLabel}
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'soldiers'}
-                className={`overlay-tabs__button${activeTab === 'soldiers' ? ' is-active' : ''}`}
-                onClick={() => setActiveTab('soldiers')}
-              >
-                {soldiersTabLabel}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'battle'}
-                className={`overlay-tabs__button${activeTab === 'battle' ? ' is-active' : ''}`}
-                onClick={() => setActiveTab('battle')}
-              >
-                {battleTabLabel}
-              </button>
+              {isBattleMode ? (
+                <>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === 'soldiers'}
+                    className={`overlay-tabs__button${activeTab === 'soldiers' ? ' is-active' : ''}`}
+                    onClick={() => setActiveTab('soldiers')}
+                  >
+                    {soldiersTabLabel}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === 'battle'}
+                    className={`overlay-tabs__button${activeTab === 'battle' ? ' is-active' : ''}`}
+                    onClick={() => setActiveTab('battle')}
+                  >
+                    {battleTabLabel}
+                  </button>
+                </>
+              ) : null}
             </div>
 
             <div hidden={activeTab !== 'upgrades'} role="tabpanel">
-              {COLONY_UPGRADE_CARDS.map((upgradeCard) => {
+              {visibleColonyUpgradeCards.map((upgradeCard) => {
                 const level = upgradeLevels[upgradeCard.key];
                 const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
                 const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
@@ -678,47 +705,51 @@ export function UpgradeOverlay({
               })}
             </div>
 
-            <div hidden={activeTab !== 'soldiers'} role="tabpanel">
-              {SOLDIER_UPGRADE_CARDS.map((upgradeCard) => {
-                const level = upgradeLevels[upgradeCard.key];
-                const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
-                const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
-                const canAfford = foodAmount >= cost;
-                const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
+            {isBattleMode ? (
+              <div hidden={activeTab !== 'soldiers'} role="tabpanel">
+                {SOLDIER_UPGRADE_CARDS.map((upgradeCard) => {
+                  const level = upgradeLevels[upgradeCard.key];
+                  const cost = useGameStore.getState().upgradeCost(upgradeCard.key);
+                  const isMaxLevel = level >= MAX_UPGRADE_LEVEL;
+                  const canAfford = foodAmount >= cost;
+                  const cardText = UPGRADE_CARD_TEXT[language][upgradeCard.key];
 
-                return (
-                  <section className="panel upgrade-card" key={upgradeCard.key}>
-                    <div className="upgrade-card__header">
-                      <div>
-                        <p className="panel-label">{cardText.label}</p>
-                        <h2>{cardText.title}</h2>
+                  return (
+                    <section className="panel upgrade-card" key={upgradeCard.key}>
+                      <div className="upgrade-card__header">
+                        <div>
+                          <p className="panel-label">{cardText.label}</p>
+                          <h2>{cardText.title}</h2>
+                        </div>
+                        <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
                       </div>
-                      <span className="upgrade-level">{isZh ? `等級 ${level}` : `Lv. ${level}`}</span>
-                    </div>
-                    <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
-                    <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
-                    <button
-                      type="button"
-                      className="upgrade-button"
-                      onClick={() => purchaseUpgrade(upgradeCard.key)}
-                      disabled={!canAfford || isMaxLevel}
-                    >
-                      {isMaxLevel
-                        ? isZh
-                          ? '已達最高等級'
-                          : 'Max Level Reached'
-                        : isZh
-                          ? `花費 ${cost} 食物升級`
-                          : `Buy for ${cost} food`}
-                    </button>
-                  </section>
-                );
-              })}
-            </div>
+                      <p className="upgrade-description">{formatEffect(language, upgradeCard.key, level)}</p>
+                      <p className="upgrade-current-value">{formatCurrentValue(language, upgradeCard.key, level)}</p>
+                      <button
+                        type="button"
+                        className="upgrade-button"
+                        onClick={() => purchaseUpgrade(upgradeCard.key)}
+                        disabled={!canAfford || isMaxLevel}
+                      >
+                        {isMaxLevel
+                          ? isZh
+                            ? '已達最高等級'
+                            : 'Max Level Reached'
+                          : isZh
+                            ? `花費 ${cost} 食物升級`
+                            : `Buy for ${cost} food`}
+                      </button>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : null}
 
-            <div hidden={activeTab !== 'battle'} role="tabpanel">
-              <BattlePlannerPanel language={language} embedded />
-            </div>
+            {isBattleMode ? (
+              <div hidden={activeTab !== 'battle'} role="tabpanel">
+                <BattlePlannerPanel language={language} embedded />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

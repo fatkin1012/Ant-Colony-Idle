@@ -2,6 +2,7 @@ import type { UpgradeState } from './gameStore';
 import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 
 export type GameLanguage = 'zh-TW' | 'en';
+export type GameMode = 'battle' | 'idle';
 
 export interface PersistedGameState {
   colonySize: number;
@@ -26,6 +27,7 @@ interface LocalSavePayload {
 
 const LOCAL_SAVE_KEY = 'ant-colony-idle-save-v1';
 const LANGUAGE_KEY = 'ant-colony-idle-language';
+const GAME_MODE_KEY = 'ant-colony-idle-game-mode';
 
 function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   const rawNestRecovery = (state.upgradeLevels as unknown as Record<string, unknown>).nestRecovery;
@@ -179,4 +181,18 @@ export function loadGameLanguage(): GameLanguage {
 
 export function saveGameLanguage(language: GameLanguage) {
   window.localStorage.setItem(LANGUAGE_KEY, language);
+}
+
+export function loadGameMode(): GameMode {
+  const value = window.localStorage.getItem(GAME_MODE_KEY);
+
+  if (value === 'battle' || value === 'idle') {
+    return value;
+  }
+
+  return 'battle';
+}
+
+export function saveGameMode(mode: GameMode) {
+  window.localStorage.setItem(GAME_MODE_KEY, mode);
 }
