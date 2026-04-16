@@ -6,6 +6,7 @@ import {
   ANT_SPEED_MULTIPLIER_PER_LEVEL,
   BASE_ANT_FORAGE_RADIUS_FACTOR,
   BASE_MAX_FOOD_ON_FIELD,
+  BASE_PLAYER_NEST_MAX_HEALTH,
   BASE_SPAWN_INTERVAL_SECONDS,
   FOOD_CAPACITY_PER_LEVEL,
   FORAGE_RADIUS_FACTOR_PER_LEVEL,
@@ -13,6 +14,7 @@ import {
   MAX_ANT_SPEED_MULTIPLIER,
   MAX_FOOD_ON_FIELD,
   NEST_RECOVERY_PER_MINUTE_PER_LEVEL,
+  NEST_MAX_HEALTH_PER_LEVEL,
   MAX_SPAWN_REDUCTION,
   MAX_SOLDIER_ATTACK_RANGE_BONUS,
   MAX_SOLDIER_DAMAGE_MULTIPLIER,
@@ -24,13 +26,12 @@ import {
   POPULATION_CAPACITY_PER_LEVEL,
   MIN_SPAWN_INTERVAL_SECONDS,
   SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL,
-  SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
   SOLDIER_DAMAGE_MULTIPLIER_PER_LEVEL,
   SOLDIER_HEALTH_MULTIPLIER_PER_LEVEL,
   SOLDIER_SPEED_MULTIPLIER_PER_LEVEL,
   SOLDIER_TAUNT_RADIUS_BONUS_PER_LEVEL,
-  MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
   SPAWN_REDUCTION_PER_LEVEL,
+  getPlayerNestMaxHealth,
 } from '../game/upgradeBalances';
 
 const DRAG_EDGE_MARGIN = 16;
@@ -139,6 +140,12 @@ function formatEffect(
       : `Next level: nest recovery +${NEST_RECOVERY_PER_MINUTE_PER_LEVEL} HP/min`;
   }
 
+  if (upgradeKey === 'nestMaxHealth') {
+    return isZh
+      ? `下一級：巢穴生命上限 +${NEST_MAX_HEALTH_PER_LEVEL}`
+      : `Next level: nest max health +${NEST_MAX_HEALTH_PER_LEVEL}`;
+  }
+
   if (upgradeKey === 'foodCapacity') {
     return isZh
       ? `下一級：場上食物上限 +${FOOD_CAPACITY_PER_LEVEL}`
@@ -185,12 +192,6 @@ function formatEffect(
       : `Next level: spitter attack range +${SOLDIER_ATTACK_RANGE_BONUS_PER_LEVEL.toFixed(1)}`;
   }
 
-  if (upgradeKey === 'soldierAttackCooldown') {
-    return isZh
-      ? `下一級：兵種攻速間隔 -${(SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL * 100).toFixed(1)}%`
-      : `Next level: soldier attack interval -${(SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL * 100).toFixed(1)}%`;
-  }
-
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
@@ -222,6 +223,11 @@ function formatCurrentValue(
   if (upgradeKey === 'nestRecovery') {
     const hpPerMinute = Math.max(0, level) * NEST_RECOVERY_PER_MINUTE_PER_LEVEL;
     return isZh ? `目前：每分鐘回血 ${hpPerMinute}` : `Current: ${hpPerMinute} HP/min`;
+  }
+
+  if (upgradeKey === 'nestMaxHealth') {
+    const maxHealth = getPlayerNestMaxHealth(level);
+    return isZh ? `目前：巢穴上限 ${maxHealth}` : `Current: nest max health ${maxHealth}`;
   }
 
   if (upgradeKey === 'foodCapacity') {
@@ -269,16 +275,6 @@ function formatCurrentValue(
     return isZh ? `目前：酸液兵攻擊距離 +${bonus.toFixed(1)}` : `Current: +${bonus.toFixed(1)} spitter range`;
   }
 
-  if (upgradeKey === 'soldierAttackCooldown') {
-    const cooldownMultiplier = Math.max(
-      MIN_SOLDIER_ATTACK_COOLDOWN_MULTIPLIER,
-      1 - Math.max(0, level) * SOLDIER_ATTACK_COOLDOWN_REDUCTION_PER_LEVEL,
-    );
-    return isZh
-      ? `目前：兵種攻速間隔 x${cooldownMultiplier.toFixed(2)}`
-      : `Current: x${cooldownMultiplier.toFixed(2)} soldier attack interval`;
-  }
-
   throw new Error(`Unsupported upgrade key: ${upgradeKey}`);
 }
 
@@ -291,6 +287,7 @@ const UPGRADE_CARD_TEXT: Record<
     carryCapacity: { label: '搬運容量', title: '每趟搬更多食物' },
     antSpeed: { label: '螞蟻速度', title: '探索與搬運更快' },
     nestRecovery: { label: '巢穴回復', title: '每分鐘回復巢穴耐久' },
+    nestMaxHealth: { label: '巢穴生命', title: '提高巢穴生命上限' },
     foodCapacity: { label: '食物容量', title: '地面可存在更多食物' },
     forageRadius: { label: '覓食範圍', title: '更遠距離偵測食物' },
     populationCapacity: { label: '人口容量', title: '提高工蟻與兵蟻總人口上限' },
@@ -298,14 +295,14 @@ const UPGRADE_CARD_TEXT: Record<
     soldierHealth: { label: '兵種血量', title: '提高兵蟻耐久上限' },
     soldierSpeed: { label: '兵種速度', title: '加快兵蟻移動效率' },
     soldierTauntRange: { label: '嘲諷範圍', title: '守衛吸引敵人更遠距離' },
-    soldierAttackRange: { label: '攻擊距離', title: '酸液兵可在更遠處交戰' },
-    soldierAttackCooldown: { label: '攻速間隔', title: '縮短兵蟻每次攻擊的冷卻時間' },
+    soldierAttackRange: { label: '攻擊距離', title: '僅酸液兵可在更遠處交戰' },
   },
   en: {
     queenSpawnRate: { label: 'Queen Spawn Rate', title: 'Faster Ant Production' },
     carryCapacity: { label: 'Carry Capacity', title: 'More Food Per Trip' },
     antSpeed: { label: 'Ant Speed', title: 'Quicker Search Runs' },
     nestRecovery: { label: 'Nest Recovery', title: 'Restore Nest Health Over Time' },
+    nestMaxHealth: { label: 'Nest Vitality', title: 'Increase Nest Max Health' },
     foodCapacity: { label: 'Food Capacity', title: 'More Food On The Ground' },
     forageRadius: { label: 'Forage Radius', title: 'Stronger Food Detection' },
     populationCapacity: { label: 'Population Capacity', title: 'Increase Total Worker + Soldier Cap' },
@@ -313,8 +310,7 @@ const UPGRADE_CARD_TEXT: Record<
     soldierHealth: { label: 'Soldier Health', title: 'Increase Unit HP Pool' },
     soldierSpeed: { label: 'Soldier Speed', title: 'Faster Unit Movement' },
     soldierTauntRange: { label: 'Taunt Radius', title: 'Guardians Pull Enemies From Farther Away' },
-    soldierAttackRange: { label: 'Attack Range', title: 'Spitters Engage From Longer Distance' },
-    soldierAttackCooldown: { label: 'Attack Interval', title: 'Reduce Time Between Soldier Attacks' },
+    soldierAttackRange: { label: 'Attack Range', title: 'Only Spitters Engage From Longer Distance' },
   },
 };
 
@@ -323,6 +319,7 @@ const COLONY_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
   { key: 'carryCapacity' },
   { key: 'antSpeed' },
   { key: 'nestRecovery' },
+  { key: 'nestMaxHealth' },
   { key: 'foodCapacity' },
   { key: 'forageRadius' },
   { key: 'populationCapacity' },
@@ -334,7 +331,6 @@ const SOLDIER_UPGRADE_CARDS: ReadonlyArray<{ key: UpgradeKey }> = [
   { key: 'soldierSpeed' },
   { key: 'soldierTauntRange' },
   { key: 'soldierAttackRange' },
-  { key: 'soldierAttackCooldown' },
 ];
 
 interface UpgradeOverlayProps {
@@ -386,6 +382,8 @@ export function UpgradeOverlay({
   const upgradeLevels = useGameStore((state) => state.upgradeLevels);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
   const isZh = language === 'zh-TW';
+  const maxNestHealth = getPlayerNestMaxHealth(upgradeLevels.nestMaxHealth ?? 0);
+  const safeNestHealth = Math.max(0, Math.floor(nestHealth));
   const populationLimit = BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
   const attackAlertLabel = isZh ? '敵襲警報' : 'Under Attack';
   const isUnderAttack = lastNestHitAt > 0 && now - lastNestHitAt < ATTACK_ALERT_DURATION_MS;
@@ -568,7 +566,7 @@ export function UpgradeOverlay({
           </div>
           <div className="summary-stat" role="group" aria-label={summaryNestHealthLabel}>
             <SummaryIcon kind="health" label={summaryNestHealthLabel} />
-            <strong className="panel-value">{Math.max(0, Math.floor(nestHealth))}%</strong>
+            <strong className="panel-value">{safeNestHealth} / {maxNestHealth}</strong>
           </div>
           <div className="summary-stat" role="group" aria-label={summaryNextWaveLabel}>
             <SummaryIcon kind="wave" label={summaryNextWaveLabel} />

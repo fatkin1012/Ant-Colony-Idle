@@ -30,6 +30,7 @@ app.post('/api/save', async (request, response) => {
       carryCapacity: clampUpgradeLevel(body.upgrade_levels.carryCapacity),
       antSpeed: clampUpgradeLevel(body.upgrade_levels.antSpeed),
       nestRecovery: clampUpgradeLevel(body.upgrade_levels.nestRecovery),
+      nestMaxHealth: clampUpgradeLevel(body.upgrade_levels.nestMaxHealth),
       foodCapacity: clampUpgradeLevel(body.upgrade_levels.foodCapacity),
       forageRadius: clampUpgradeLevel(body.upgrade_levels.forageRadius),
       populationCapacity: clampUpgradeLevel(body.upgrade_levels.populationCapacity),
@@ -78,6 +79,7 @@ function isValidSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.carryCapacity === 'number' &&
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.nestRecovery === 'number' &&
+    typeof upgradeLevels.nestMaxHealth === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
     typeof upgradeLevels.populationCapacity === 'number' &&

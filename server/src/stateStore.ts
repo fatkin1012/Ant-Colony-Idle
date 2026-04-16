@@ -11,6 +11,7 @@ const DEFAULT_STATE: SavedGameState = {
     carryCapacity: 0,
     antSpeed: 0,
     nestRecovery: 0,
+    nestMaxHealth: 0,
     foodCapacity: 0,
     forageRadius: 0,
     populationCapacity: 0,
@@ -64,6 +65,7 @@ function isSavedGameState(value: unknown): value is SavedGameState {
     typeof upgradeLevels.carryCapacity === 'number' &&
     typeof upgradeLevels.antSpeed === 'number' &&
     typeof upgradeLevels.nestRecovery === 'number' &&
+    typeof upgradeLevels.nestMaxHealth === 'number' &&
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
     typeof upgradeLevels.populationCapacity === 'number' &&
@@ -84,6 +86,7 @@ function normalizeSavedGameState(state: SavedGameState): SavedGameState {
       carryCapacity: clampUpgradeLevel(state.upgrade_levels.carryCapacity),
       antSpeed: clampUpgradeLevel(state.upgrade_levels.antSpeed),
       nestRecovery: clampUpgradeLevel(state.upgrade_levels.nestRecovery),
+      nestMaxHealth: clampUpgradeLevel(state.upgrade_levels.nestMaxHealth),
       foodCapacity: clampUpgradeLevel(state.upgrade_levels.foodCapacity),
       forageRadius: clampUpgradeLevel(state.upgrade_levels.forageRadius),
       populationCapacity: clampUpgradeLevel(state.upgrade_levels.populationCapacity),

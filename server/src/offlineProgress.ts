@@ -48,6 +48,7 @@ export function calculateOfflineProgress(state: SavedGameState, nowTimestamp: nu
         carryCapacity: state.upgrade_levels.carryCapacity,
         antSpeed: state.upgrade_levels.antSpeed,
         nestRecovery: state.upgrade_levels.nestRecovery,
+        nestMaxHealth: state.upgrade_levels.nestMaxHealth,
         foodCapacity: state.upgrade_levels.foodCapacity,
         forageRadius: state.upgrade_levels.forageRadius,
         populationCapacity: state.upgrade_levels.populationCapacity,

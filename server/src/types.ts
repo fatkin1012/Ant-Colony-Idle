@@ -6,6 +6,7 @@ export interface SavedGameState {
     carryCapacity: number;
     antSpeed: number;
     nestRecovery: number;
+    nestMaxHealth: number;
     foodCapacity: number;
     forageRadius: number;
     populationCapacity: number;

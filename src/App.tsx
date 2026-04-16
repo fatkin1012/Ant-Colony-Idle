@@ -10,7 +10,7 @@ import {
   savePersistedGameStateOnPageHide,
   type GameLanguage,
 } from './state/gamePersistence';
-import { getPersistedGameSnapshot, INITIAL_FOOD_AMOUNT, useGameStore } from './state/gameStore';
+import { DEFAULT_NEST_HEALTH, getPersistedGameSnapshot, INITIAL_FOOD_AMOUNT, useGameStore } from './state/gameStore';
 
 const AUTO_SAVE_INTERVAL_MS = 4000;
 
@@ -19,6 +19,7 @@ const EMPTY_UPGRADE_LEVELS = {
   carryCapacity: 0,
   antSpeed: 0,
   nestRecovery: 0,
+  nestMaxHealth: 0,
   foodCapacity: 0,
   forageRadius: 0,
   populationCapacity: 0,
@@ -27,7 +28,6 @@ const EMPTY_UPGRADE_LEVELS = {
   soldierSpeed: 0,
   soldierTauntRange: 0,
   soldierAttackRange: 0,
-  soldierAttackCooldown: 0,
 } as const;
 
 const TRANSLATIONS: Record<
@@ -228,7 +228,7 @@ export default function App() {
     useGameStore.getState().hydrateFromPersistence({
       colonySize: 12,
       foodAmount: INITIAL_FOOD_AMOUNT,
-      nestHealth: 100,
+      nestHealth: DEFAULT_NEST_HEALTH,
       nextEnemyWaveInSeconds: 0,
       upgradeLevels: EMPTY_UPGRADE_LEVELS,
       engineState: null,

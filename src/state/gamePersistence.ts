@@ -32,6 +32,8 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   const nestRecovery = typeof rawNestRecovery === 'number' ? rawNestRecovery : 0;
   const rawPopulationCapacity = (state.upgradeLevels as unknown as Record<string, unknown>).populationCapacity;
   const populationCapacity = typeof rawPopulationCapacity === 'number' ? rawPopulationCapacity : 0;
+  const rawNestMaxHealth = (state.upgradeLevels as unknown as Record<string, unknown>).nestMaxHealth;
+  const nestMaxHealth = typeof rawNestMaxHealth === 'number' ? rawNestMaxHealth : 0;
   const rawSoldierDamage = (state.upgradeLevels as unknown as Record<string, unknown>).soldierDamage;
   const soldierDamage = typeof rawSoldierDamage === 'number' ? rawSoldierDamage : 0;
   const rawSoldierHealth = (state.upgradeLevels as unknown as Record<string, unknown>).soldierHealth;
@@ -42,8 +44,6 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
   const soldierTauntRange = typeof rawSoldierTauntRange === 'number' ? rawSoldierTauntRange : 0;
   const rawSoldierAttackRange = (state.upgradeLevels as unknown as Record<string, unknown>).soldierAttackRange;
   const soldierAttackRange = typeof rawSoldierAttackRange === 'number' ? rawSoldierAttackRange : 0;
-  const rawSoldierAttackCooldown = (state.upgradeLevels as unknown as Record<string, unknown>).soldierAttackCooldown;
-  const soldierAttackCooldown = typeof rawSoldierAttackCooldown === 'number' ? rawSoldierAttackCooldown : 0;
 
   return {
     colonySize: Math.max(0, Math.floor(state.colonySize)),
@@ -55,6 +55,7 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       carryCapacity: Math.max(0, Math.floor(state.upgradeLevels.carryCapacity)),
       antSpeed: Math.max(0, Math.floor(state.upgradeLevels.antSpeed)),
       nestRecovery: Math.max(0, Math.floor(nestRecovery)),
+      nestMaxHealth: Math.max(0, Math.floor(nestMaxHealth)),
       foodCapacity: Math.max(0, Math.floor(state.upgradeLevels.foodCapacity)),
       forageRadius: Math.max(0, Math.floor(state.upgradeLevels.forageRadius)),
       populationCapacity: Math.max(0, Math.floor(populationCapacity)),
@@ -63,7 +64,6 @@ function sanitizeState(state: PersistedGameStateCandidate): PersistedGameState {
       soldierSpeed: Math.max(0, Math.floor(soldierSpeed)),
       soldierTauntRange: Math.max(0, Math.floor(soldierTauntRange)),
       soldierAttackRange: Math.max(0, Math.floor(soldierAttackRange)),
-      soldierAttackCooldown: Math.max(0, Math.floor(soldierAttackCooldown)),
     },
     engineState: isValidEngineState(state.engineState) ? state.engineState : null,
   };
@@ -107,6 +107,7 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     typeof upgradeLevels.carryCapacity === 'number' &&
     typeof upgradeLevels.antSpeed === 'number' &&
     (typeof upgradeLevels.nestRecovery === 'number' || typeof upgradeLevels.nestRecovery === 'undefined') &&
+    (typeof upgradeLevels.nestMaxHealth === 'number' || typeof upgradeLevels.nestMaxHealth === 'undefined') &&
     typeof upgradeLevels.foodCapacity === 'number' &&
     typeof upgradeLevels.forageRadius === 'number' &&
     (typeof upgradeLevels.populationCapacity === 'number' || typeof upgradeLevels.populationCapacity === 'undefined') &&
@@ -115,7 +116,6 @@ function isPersistedGameState(value: unknown): value is PersistedGameStateCandid
     (typeof upgradeLevels.soldierSpeed === 'number' || typeof upgradeLevels.soldierSpeed === 'undefined') &&
     (typeof upgradeLevels.soldierTauntRange === 'number' || typeof upgradeLevels.soldierTauntRange === 'undefined') &&
     (typeof upgradeLevels.soldierAttackRange === 'number' || typeof upgradeLevels.soldierAttackRange === 'undefined') &&
-    (typeof upgradeLevels.soldierAttackCooldown === 'number' || typeof upgradeLevels.soldierAttackCooldown === 'undefined') &&
     (typeof candidate.engineState === 'undefined' || isValidEngineState(candidate.engineState))
   );
 }

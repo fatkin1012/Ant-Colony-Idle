@@ -1,16 +1,23 @@
 import { create } from 'zustand';
-import { BASE_POPULATION_CAPACITY, MAX_UPGRADE_LEVEL, POPULATION_CAPACITY_PER_LEVEL } from '../game/upgradeBalances';
+import {
+  BASE_POPULATION_CAPACITY,
+  BASE_PLAYER_NEST_MAX_HEALTH,
+  MAX_UPGRADE_LEVEL,
+  POPULATION_CAPACITY_PER_LEVEL,
+  getPlayerNestMaxHealth,
+} from '../game/upgradeBalances';
 import type { PersistedGameState } from './gamePersistence';
 import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
-export const INITIAL_FOOD_AMOUNT = 300;
+export const INITIAL_FOOD_AMOUNT = 200;
 
 export type UpgradeKey =
   | 'queenSpawnRate'
   | 'carryCapacity'
   | 'antSpeed'
   | 'nestRecovery'
+  | 'nestMaxHealth'
   | 'foodCapacity'
   | 'forageRadius'
   | 'populationCapacity'
@@ -18,14 +25,14 @@ export type UpgradeKey =
   | 'soldierHealth'
   | 'soldierSpeed'
   | 'soldierTauntRange'
-  | 'soldierAttackRange'
-  | 'soldierAttackCooldown';
+  | 'soldierAttackRange';
 
 export interface UpgradeState {
   queenSpawnRate: number;
   carryCapacity: number;
   antSpeed: number;
   nestRecovery: number;
+  nestMaxHealth: number;
   foodCapacity: number;
   forageRadius: number;
   populationCapacity: number;
@@ -34,7 +41,6 @@ export interface UpgradeState {
   soldierSpeed: number;
   soldierTauntRange: number;
   soldierAttackRange: number;
-  soldierAttackCooldown: number;
 }
 
 export interface BattleDeployment {
@@ -74,6 +80,7 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   carryCapacity: 25,
   antSpeed: 25,
   nestRecovery: 28,
+  nestMaxHealth: 58,
   foodCapacity: 30,
   forageRadius: 35,
   populationCapacity: 55,
@@ -82,7 +89,6 @@ const UPGRADE_BASE_COST: Record<UpgradeKey, number> = {
   soldierSpeed: 42,
   soldierTauntRange: 40,
   soldierAttackRange: 46,
-  soldierAttackCooldown: 50,
 };
 
 const UPGRADE_COST_GROWTH = 1.45;
@@ -108,6 +114,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     carryCapacity: 0,
     antSpeed: 0,
     nestRecovery: 0,
+    nestMaxHealth: 0,
     foodCapacity: 0,
     forageRadius: 0,
     populationCapacity: 0,
@@ -116,13 +123,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     soldierSpeed: 0,
     soldierTauntRange: 0,
     soldierAttackRange: 0,
-    soldierAttackCooldown: 0,
   },
   hydrateFromPersistence: (state) => {
+    const nestMaxHealthLevel = clampUpgradeLevel((state.upgradeLevels as Partial<UpgradeState>).nestMaxHealth ?? 0);
+    const maxNestHealth = getPlayerNestMaxHealth(nestMaxHealthLevel);
+
     set({
       colonySize: Math.max(0, Math.floor(state.colonySize)),
       foodAmount: Math.max(0, Math.floor(state.foodAmount)),
-      nestHealth: Math.max(0, Math.floor(state.nestHealth)),
+      nestHealth: Math.max(0, Math.min(maxNestHealth, Math.floor(state.nestHealth))),
       nextEnemyWaveInSeconds: Math.max(0, Math.floor(state.nextEnemyWaveInSeconds ?? 0)),
       engineState: state.engineState ?? null,
       lastNestHitAt: 0,
@@ -132,6 +141,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         carryCapacity: clampUpgradeLevel(state.upgradeLevels.carryCapacity),
         antSpeed: clampUpgradeLevel(state.upgradeLevels.antSpeed),
         nestRecovery: clampUpgradeLevel(state.upgradeLevels.nestRecovery),
+        nestMaxHealth: nestMaxHealthLevel,
         foodCapacity: clampUpgradeLevel(state.upgradeLevels.foodCapacity),
         forageRadius: clampUpgradeLevel(state.upgradeLevels.forageRadius),
         populationCapacity: clampUpgradeLevel(state.upgradeLevels.populationCapacity),
@@ -140,7 +150,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         soldierSpeed: clampUpgradeLevel(state.upgradeLevels.soldierSpeed),
         soldierTauntRange: clampUpgradeLevel(state.upgradeLevels.soldierTauntRange),
         soldierAttackRange: clampUpgradeLevel(state.upgradeLevels.soldierAttackRange),
-        soldierAttackCooldown: clampUpgradeLevel(state.upgradeLevels.soldierAttackCooldown),
       },
     });
   },
@@ -168,8 +177,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
   setNestHealth: (health) => {
+    const maxNestHealth = getNestMaxHealth(get().upgradeLevels);
+
     set({
-      nestHealth: Math.max(0, Math.floor(health)),
+      nestHealth: Math.max(0, Math.min(maxNestHealth, Math.floor(health))),
     });
   },
   setNextEnemyWaveInSeconds: (seconds) => {
@@ -284,3 +295,9 @@ export function getPersistedGameSnapshot(
 export function getPopulationLimit(upgradeLevels: Pick<UpgradeState, 'populationCapacity'>) {
   return BASE_POPULATION_CAPACITY + Math.max(0, upgradeLevels.populationCapacity) * POPULATION_CAPACITY_PER_LEVEL;
 }
+
+export function getNestMaxHealth(upgradeLevels: Pick<UpgradeState, 'nestMaxHealth'>) {
+  return getPlayerNestMaxHealth(upgradeLevels.nestMaxHealth ?? 0);
+}
+
+export const DEFAULT_NEST_HEALTH = BASE_PLAYER_NEST_MAX_HEALTH;
