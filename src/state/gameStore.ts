@@ -10,7 +10,7 @@ import type { PersistedGameState } from './gamePersistence';
 import type { GameEngineSnapshot } from '../game/engine/GameEngine';
 import type { AntRole, SquadMode } from '../game/combat/antTypes';
 
-export const INITIAL_FOOD_AMOUNT = 500;
+export const INITIAL_FOOD_AMOUNT = 1000;
 
 export type UpgradeKey =
   | 'queenSpawnRate'
